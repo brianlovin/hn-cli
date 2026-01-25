@@ -289,7 +289,7 @@ export class HackerNewsApp {
     const shortcuts = [
       { key: "j/k", desc: "stories" },
       { key: "⌘j/k", desc: "comments" },
-      { key: "o", desc: "open url" },
+      { key: "o", desc: "open" },
       { key: "q", desc: "quit" },
     ];
 
