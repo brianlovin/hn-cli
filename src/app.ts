@@ -290,7 +290,6 @@ export class HackerNewsApp {
       { key: "j/k", desc: "stories" },
       { key: "⌘j/k", desc: "comments" },
       { key: "o", desc: "open url" },
-      { key: "⌘o", desc: "view on briOS" },
       { key: "q", desc: "quit" },
     ];
 
@@ -341,12 +340,8 @@ export class HackerNewsApp {
         this.navigateToPreviousComment();
       }
       // Open URL: 'o' key
-      else if (key.name === "o" && !hasCmdMod) {
+      else if (key.name === "o") {
         this.openStoryUrl();
-      }
-      // Open on briOS: cmd+o
-      else if (key.name === "o" && hasCmdMod) {
-        this.openOnHN();
       } else if (key.name === "r") {
         this.refresh();
       }
