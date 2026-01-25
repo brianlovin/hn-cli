@@ -1,0 +1,50 @@
+                                                                                                                        
+  briOS HN                                                                                                              
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ● Test Post with Long Comments to      █│                                                                             █
+   Debug Text Wrapping Issues           █│  Test Post with Long Comments to Debug Text Wrapping Issues                 █
+   example.com                          █│  example.com                                                                █
+                                        █│                                                                             █
+                                        █│  ─────────────────────────────────────────────────────────────────────────  █
+                                        █│                                                                             █
+                                        █│  5 comments                                                                 █
+                                        █│                                                                             █
+                                        █│                                                                             █
+                                        █│  │ princevegeta89                                                           █
+                                        █│  │ No surprises. No matter how we look at it, EVs are much friendlier and   █
+                                        █│  │ safer to the environment. Some people argue the source of electricity    █
+                                        █│  │ can be contested against because that involves fossil fuel burning       █
+                                        █│  │ again, but in today's world we are rapidly moving away from it and       █
+                                        █│  │ towards nuclear/hydel/wind methods for generating power.                 █
+                                        █│  │                                                                          █
+                                        █│  │ I hope ICE cars completely become a thing of the past in the next        █
+                                        █│  │ couple of decades to come.                                               █
+                                        █│                                                                             █
+                                        █│    │ MBCook                                                                 █
+                                        █│    │ The number of ICE cars I get stuck behind from time to time that       █
+                                        █│    │ just REEK is amazing. I'm in decently well off area too. Some          █
+                                        █│    │ putting off soot clouds, white smoke, nothing visible but clearly       
+                                         │    │ not doing complete combustion. Sometimes I wonder if half the           
+                                         │    │ cylinders are even working.                                             
+                                         │                                                                              
+                                         │      │ srmarm                                                                
+                                         │      │ My city is covered by a low emissions zone so the odd van             
+                                         │      │ polluting sticks out. I was in Athens recently and the pollution      
+                                         │      │ from so many old rough cars was so noticeable (and quite              
+                                         │      │ unpleasant).                                                          
+                                         │                                                                              
+                                         │        │ deepnester                                                          
+                                         │        │ This is a level 3 nested comment that should still wrap properly    
+                                         │        │ even with significant indentation from the parent comments.         
+                                         │        │                                                                     
+                                         │                                                                              
+                                         │                                                                              
+                                         │  │ another_user                                                              
+                                         │  │ This is another root level comment that should also wrap properly         
+                                         │  │ within the available space of the detail panel.                           
+                                         │                                                                              
+                                         │                                                                              
+                                         │                                                                              
+                                         │──────────────────────────────────────────────────────────────────────────────
+                                         │  j/k stories  ⌘j/k comments  o open url  ⌘o view on briOS  q quit            
+                                         │                                                                              
