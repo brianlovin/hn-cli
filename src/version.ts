@@ -1,0 +1,80 @@
+import { version as currentVersion } from "../package.json";
+
+const REGISTRY_URL = "https://registry.npmjs.org/@brianlovin/hn-cli/latest";
+const PACKAGE_NAME = "@brianlovin/hn-cli";
+
+export interface UpdateInfo {
+  hasUpdate: boolean;
+  currentVersion: string;
+  latestVersion: string;
+}
+
+/**
+ * Compare two semver versions.
+ * Returns true if latest is newer than current.
+ */
+function isNewerVersion(current: string, latest: string): boolean {
+  const currentParts = current.split(".").map(Number);
+  const latestParts = latest.split(".").map(Number);
+
+  for (let i = 0; i < 3; i++) {
+    const curr = currentParts[i] ?? 0;
+    const lat = latestParts[i] ?? 0;
+    if (lat > curr) return true;
+    if (lat < curr) return false;
+  }
+  return false;
+}
+
+/**
+ * Check if a newer version is available on npm.
+ * Returns null if check fails (network error, etc).
+ */
+export async function checkForUpdates(): Promise<UpdateInfo | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+
+    const response = await fetch(REGISTRY_URL, {
+      signal: controller.signal,
+      headers: {
+        Accept: "application/json",
+      },
+    });
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = (await response.json()) as { version?: string };
+    const latestVersion = data.version;
+
+    if (!latestVersion) {
+      return null;
+    }
+
+    return {
+      hasUpdate: isNewerVersion(currentVersion, latestVersion),
+      currentVersion,
+      latestVersion,
+    };
+  } catch {
+    // Network error, timeout, or other issue - silently fail
+    return null;
+  }
+}
+
+/**
+ * Get the install command for updating.
+ */
+export function getUpdateCommand(): string {
+  // Check if running via bun or npm based on process info
+  const isBun = process.versions.bun !== undefined;
+  if (isBun) {
+    return `bun install -g ${PACKAGE_NAME}`;
+  }
+  return `npm install -g ${PACKAGE_NAME}`;
+}
+
+export { currentVersion };

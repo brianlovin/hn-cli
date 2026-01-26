@@ -2,6 +2,7 @@
 import { createCliRenderer } from "@opentui/core";
 import { exec } from "child_process";
 import { HackerNewsApp } from "./app";
+import { checkForUpdates } from "./version";
 
 const COLORS = {
   bg: "#1a1a1a",
@@ -26,6 +27,13 @@ async function main() {
       renderer.destroy();
       process.exit(0);
     },
+  });
+
+  // Check for updates in the background (non-blocking)
+  checkForUpdates().then((updateInfo) => {
+    if (updateInfo?.hasUpdate) {
+      app.setUpdateInfo(updateInfo);
+    }
   });
 
   await app.initialize();
