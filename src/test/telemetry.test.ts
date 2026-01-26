@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach, mock, spyOn } from "bun:test";
 import * as telemetry from "../telemetry";
 import * as config from "../config";
+import pkg from "../../package.json";
 
 describe("telemetry", () => {
   beforeEach(() => {
@@ -165,6 +166,34 @@ describe("telemetry", () => {
 
     // Only one fetch should have been made due to the isFlushing guard
     expect(fetchCallCount).toBe(1);
+
+    // Restore mocks
+    globalThis.fetch = originalFetch;
+    isTelemetryEnabledMock.mockRestore();
+    getUserIdMock.mockRestore();
+  });
+
+  test("flush sends version in request body", async () => {
+    const isTelemetryEnabledMock = spyOn(config, "isTelemetryEnabled").mockReturnValue(true);
+    const getUserIdMock = spyOn(config, "getUserId").mockReturnValue("test-user-id");
+
+    let capturedBody: { userId: string; version: string; events: unknown[] } | null = null;
+    const originalFetch = globalThis.fetch;
+    const mockFetch = async (_url: string, options: RequestInit) => {
+      capturedBody = JSON.parse(options.body as string);
+      return new Response(JSON.stringify({ success: true }), { status: 200 });
+    };
+    mockFetch.preconnect = originalFetch.preconnect;
+    globalThis.fetch = mockFetch as typeof fetch;
+
+    telemetry.init();
+    telemetry.track("app_launch");
+    await telemetry.flush();
+
+    expect(capturedBody).not.toBeNull();
+    expect(capturedBody!.version).toBe(pkg.version);
+    expect(capturedBody!.userId).toBe("test-user-id");
+    expect(capturedBody!.events).toHaveLength(1);
 
     // Restore mocks
     globalThis.fetch = originalFetch;

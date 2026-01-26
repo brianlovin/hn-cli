@@ -1,4 +1,7 @@
 import { isTelemetryEnabled, getUserId } from "./config";
+import pkg from "../package.json";
+
+const APP_VERSION = pkg.version;
 
 /**
  * Detect if we're running in development mode.
@@ -147,6 +150,7 @@ async function flushWithTimeout(timeoutMs: number): Promise<void> {
       },
       body: JSON.stringify({
         userId,
+        version: APP_VERSION,
         events: eventsToSend,
       }),
       signal: controller.signal,
