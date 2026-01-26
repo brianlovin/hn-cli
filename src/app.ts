@@ -282,7 +282,7 @@ export class HackerNewsApp {
 
   private setupKeyboardHandlers() {
     this.renderer.keyInput.on("keypress", (key) => {
-      if (key.name === "q" || (key.ctrl && key.name === "c")) {
+      if (key.ctrl && key.name === "c") {
         this.callbacks.onExit?.();
         return;
       }

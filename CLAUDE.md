@@ -23,7 +23,6 @@ bun run typecheck # Check types
 - `o` - Open story URL in browser
 - `⌘o` - Open story on brianlovin.com/hn
 - `r` - Refresh stories
-- `q` - Quit
 
 ## Mouse Support
 
