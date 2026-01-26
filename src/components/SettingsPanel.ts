@@ -142,7 +142,7 @@ export function renderSettings(
         ? "console.anthropic.com"
         : "platform.openai.com";
       const hint = new TextRenderable(ctx, {
-        content: apiKeyUrl,
+        content: `${apiKeyUrl} (tab)`,
         fg: COLORS.textTertiary,
       });
       itemBox.add(hint);
@@ -236,17 +236,8 @@ export function renderSettings(
 
   container.add(new BoxRenderable(ctx, { height: 2 }));
 
-  // Check if any provider is missing a key (to show Tab hint)
-  const hasAnthropic = !!getApiKey("anthropic");
-  const hasOpenAI = !!getApiKey("openai");
-  const showTabHint = !hasAnthropic || !hasOpenAI;
-
-  const hintText = showTabHint
-    ? "↑/↓ navigate  Enter select  Tab open URL  Esc back"
-    : "↑/↓ navigate  Enter select  Esc back";
-
   const hint = new TextRenderable(ctx, {
-    content: hintText,
+    content: "↑/↓ navigate  Enter select  Esc back",
     fg: COLORS.textSecondary,
   });
   container.add(hint);
