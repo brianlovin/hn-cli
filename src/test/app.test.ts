@@ -272,6 +272,382 @@ describe("HackerNewsApp", () => {
       expect(frame).toContain("5 comments");
     });
   });
+
+  describe("Chat Mode Rendering", () => {
+    it("should render suggestions on separate lines", async () => {
+      const post = createMockPostWithComments({}, 2);
+      app.setPostsForTesting([post]);
+      await app.setSelectedPostForTesting(post);
+
+      // Setup chat mode with suggestions
+      (app as any).selectedPost = post;
+      (app as any).chatMode = true;
+      (app as any).suggestions = ["Question one?", "Question two?", "Question three?"];
+      (app as any).selectedSuggestionIndex = 2;
+      (app as any).suggestionsLoading = false;
+      (app as any).suggestionsGenerated = true;
+
+      // Trigger chat panel creation
+      (app as any).detailPanel.remove((app as any).detailScroll.id);
+      (app as any).detailPanel.remove((app as any).shortcutsBar.id);
+      (app as any).createChatPanel();
+      for (const child of (app as any).chatPanel.getChildren()) {
+        (app as any).detailPanel.add(child);
+      }
+      (app as any).renderSuggestions();
+
+      await renderOnce();
+      const frame = captureCharFrame();
+
+      // Verify each suggestion is on a separate line
+      const lines = frame.split("\n");
+      const q1Lines = lines.filter((l: string) => l.includes("Question one?"));
+      const q2Lines = lines.filter((l: string) => l.includes("Question two?"));
+      const q3Lines = lines.filter((l: string) => l.includes("Question three?"));
+
+      // Each should appear exactly once and on different lines
+      expect(q1Lines.length).toBe(1);
+      expect(q2Lines.length).toBe(1);
+      expect(q3Lines.length).toBe(1);
+
+      // No line should contain multiple questions (interleaving check)
+      for (const line of lines) {
+        const count = [
+          line.includes("Question one?"),
+          line.includes("Question two?"),
+          line.includes("Question three?"),
+        ].filter(Boolean).length;
+        expect(count).toBeLessThanOrEqual(1);
+      }
+    });
+
+    it("should navigate suggestions with arrow keys", async () => {
+      const post = createMockPostWithComments({}, 2);
+      app.setPostsForTesting([post]);
+      await app.setSelectedPostForTesting(post);
+
+      // Enter chat mode properly
+      (app as any).showChatView();
+      await renderOnce();
+
+      // Manually set suggestions (simulating what generateSuggestions would do)
+      (app as any).suggestionsLoading = false;
+      (app as any).suggestions = ["Question one?", "Question two?", "Question three?"];
+      (app as any).originalSuggestions = [...(app as any).suggestions];
+      (app as any).selectedSuggestionIndex = 2; // Last one selected (default)
+      (app as any).renderSuggestions();
+      await renderOnce();
+
+      // Verify initial state
+      expect((app as any).selectedSuggestionIndex).toBe(2);
+      expect((app as any).suggestions.length).toBe(3);
+
+      // Navigate up (from index 2 to 1) - use ARROW_UP for actual arrow key
+      mockInput.pressKey("ARROW_UP");
+      await renderOnce();
+      expect((app as any).selectedSuggestionIndex).toBe(1);
+
+      // Navigate up again (from index 1 to 0)
+      mockInput.pressKey("ARROW_UP");
+      await renderOnce();
+      expect((app as any).selectedSuggestionIndex).toBe(0);
+
+      // Navigate down (from index 0 to 1)
+      mockInput.pressKey("ARROW_DOWN");
+      await renderOnce();
+      expect((app as any).selectedSuggestionIndex).toBe(1);
+    });
+
+    it("should select suggestion when selectSuggestion is called", async () => {
+      const post = createMockPostWithComments({}, 2);
+      app.setPostsForTesting([post]);
+      await app.setSelectedPostForTesting(post);
+
+      // Enter chat mode
+      (app as any).showChatView();
+      await renderOnce();
+
+      // Set up suggestions
+      (app as any).suggestionsLoading = false;
+      (app as any).suggestions = ["Question one?", "Question two?", "Question three?"];
+      (app as any).selectedSuggestionIndex = 0;
+      (app as any).renderSuggestions();
+      await renderOnce();
+
+      // Verify initial state
+      expect((app as any).suggestions.length).toBe(3);
+      expect((app as any).selectedSuggestionIndex).toBe(0);
+
+      // Call selectSuggestion directly
+      (app as any).selectSuggestion();
+
+      // After selection, suggestions should be cleared
+      expect((app as any).suggestions.length).toBe(0);
+      expect((app as any).selectedSuggestionIndex).toBe(-1);
+    });
+
+    it("should submit suggestion when Enter is pressed with suggestion selected", async () => {
+      const post = createMockPostWithComments({}, 2);
+      app.setPostsForTesting([post]);
+      await app.setSelectedPostForTesting(post);
+
+      // Enter chat mode
+      (app as any).showChatView();
+      await renderOnce();
+
+      // Wait for the focus timeout from showChatView
+      await new Promise(resolve => setTimeout(resolve, 20));
+      await renderOnce();
+
+      // Set up suggestions
+      (app as any).suggestionsLoading = false;
+      (app as any).suggestions = ["Question one?", "Question two?", "Question three?"];
+      (app as any).selectedSuggestionIndex = 0;
+      (app as any).renderSuggestions();
+      await renderOnce();
+
+      // Verify initial state
+      expect((app as any).suggestions.length).toBe(3);
+      expect((app as any).selectedSuggestionIndex).toBe(0);
+      expect((app as any).chatInput.plainText).toBe("");
+
+      // Manually emit the submit event on chatInput (simulates Enter key being processed)
+      const chatInput = (app as any).chatInput;
+      chatInput.emit("submit");
+      await renderOnce();
+
+      // After submission, suggestions should be cleared and message should be sent
+      expect((app as any).suggestions.length).toBe(0);
+      expect((app as any).selectedSuggestionIndex).toBe(-1);
+    });
+
+    it("should submit typed text when Enter is pressed with text in input", async () => {
+      const post = createMockPostWithComments({}, 2);
+      app.setPostsForTesting([post]);
+      await app.setSelectedPostForTesting(post);
+
+      // Enter chat mode
+      (app as any).showChatView();
+      await renderOnce();
+
+      // Wait for the focus timeout from showChatView
+      await new Promise(resolve => setTimeout(resolve, 20));
+      await renderOnce();
+
+      // Clear any suggestions
+      (app as any).suggestionsLoading = false;
+      (app as any).suggestions = [];
+      (app as any).renderSuggestions();
+
+      // Type some text into the input
+      const chatInput = (app as any).chatInput;
+      chatInput.insertText("Hello, this is my question");
+      await renderOnce();
+
+      // Verify the text is in the input
+      expect(chatInput.plainText).toBe("Hello, this is my question");
+
+      // Record initial message count
+      const initialMessageCount = (app as any).chatMessages.length;
+
+      // Emit submit event (simulates Enter key)
+      chatInput.emit("submit");
+      await renderOnce();
+
+      // Input should be cleared and message should be added
+      // Note: sendChatMessage clears the input after sending
+      expect((app as any).chatMessages.length).toBeGreaterThan(initialMessageCount);
+    });
+
+    it("should select suggestion when Enter key is pressed", async () => {
+      const post = createMockPostWithComments({}, 2);
+      app.setPostsForTesting([post]);
+      await app.setSelectedPostForTesting(post);
+
+      // Enter chat mode
+      (app as any).showChatView();
+      await renderOnce();
+
+      // Wait for the focus timeout from showChatView
+      await new Promise(resolve => setTimeout(resolve, 20));
+      await renderOnce();
+
+      // Set up state with a suggestion selected
+      (app as any).suggestionsLoading = false;
+      (app as any).suggestions = ["Test question?"];
+      (app as any).selectedSuggestionIndex = 0;
+      (app as any).renderSuggestions();
+      await renderOnce();
+
+      // Verify initial state
+      expect((app as any).suggestions.length).toBe(1);
+      expect((app as any).selectedSuggestionIndex).toBe(0);
+
+      // Press Enter key
+      mockInput.pressEnter();
+      await renderOnce();
+
+      // Suggestion should be selected and cleared
+      expect((app as any).suggestions.length).toBe(0);
+      expect((app as any).selectedSuggestionIndex).toBe(-1);
+    });
+
+    it("should send message when Enter key is pressed with typed text", async () => {
+      const post = createMockPostWithComments({}, 2);
+      app.setPostsForTesting([post]);
+      await app.setSelectedPostForTesting(post);
+
+      // Enter chat mode
+      (app as any).showChatView();
+      await renderOnce();
+
+      // Wait for the focus timeout from showChatView
+      await new Promise(resolve => setTimeout(resolve, 20));
+      await renderOnce();
+
+      // Clear suggestions and type text
+      (app as any).suggestionsLoading = false;
+      (app as any).suggestions = [];
+      (app as any).selectedSuggestionIndex = -1;
+
+      const chatInput = (app as any).chatInput;
+      chatInput.insertText("My custom question");
+      await renderOnce();
+
+      // Verify text is in input
+      expect(chatInput.plainText).toBe("My custom question");
+
+      // Record initial message count
+      const initialMessageCount = (app as any).chatMessages.length;
+
+      // Press Enter key
+      mockInput.pressEnter();
+      await renderOnce();
+
+      // Message should be added
+      expect((app as any).chatMessages.length).toBeGreaterThan(initialMessageCount);
+    });
+
+    it("should hide story list panel when entering chat mode", async () => {
+      const post = createMockPostWithComments({}, 2);
+      app.setPostsForTesting([post]);
+      await app.setSelectedPostForTesting(post);
+      await renderOnce();
+
+      const contentArea = (app as any).contentArea;
+      const storyListPanel = (app as any).storyListPanel;
+      const detailPanel = (app as any).detailPanel;
+
+      // Get initial state - content area should have 2 children (story list + detail)
+      const initialChildren = contentArea.getChildren().length;
+      expect(initialChildren).toBe(2);
+      const initialDetailWidth = detailPanel.width;
+
+      // Enter chat mode
+      (app as any).showChatView();
+      await renderOnce();
+
+      // Story list should be removed from content area, detail panel should be wider
+      expect(contentArea.getChildren().length).toBe(1);
+      expect(contentArea.getChildren()[0]).toBe(detailPanel);
+      expect(detailPanel.width).toBeGreaterThan(initialDetailWidth);
+    });
+
+    it("should show story list panel when exiting chat mode", async () => {
+      const post = createMockPostWithComments({}, 2);
+      app.setPostsForTesting([post]);
+      await app.setSelectedPostForTesting(post);
+      await renderOnce();
+
+      const contentArea = (app as any).contentArea;
+      const storyListPanel = (app as any).storyListPanel;
+      const detailPanel = (app as any).detailPanel;
+
+      // Get initial state
+      const initialDetailWidth = detailPanel.width;
+      expect(contentArea.getChildren().length).toBe(2);
+
+      // Enter chat mode
+      (app as any).showChatView();
+      await renderOnce();
+
+      // Verify hidden state
+      expect(contentArea.getChildren().length).toBe(1);
+
+      // Exit chat mode
+      (app as any).hideChatView();
+      await renderOnce();
+
+      // Story list should be back, detail panel restored
+      expect(contentArea.getChildren().length).toBe(2);
+      expect(contentArea.getChildren()[0]).toBe(storyListPanel);
+      expect(detailPanel.width).toBe(initialDetailWidth);
+    });
+
+    it("should not show story list in chat mode frame", async () => {
+      const posts = createMockPosts(5);
+      app.setPostsForTesting(posts);
+      await app.setSelectedPostForTesting(posts[0]!);
+      await renderOnce();
+
+      // Verify story list is visible before chat mode
+      let frame = captureCharFrame();
+      expect(frame).toContain("Test Story 1");
+      expect(frame).toContain("Test Story 2");
+
+      // Enter chat mode
+      (app as any).showChatView();
+      await renderOnce();
+
+      // Story list should not be visible in the rendered frame
+      frame = captureCharFrame();
+      // The detail panel should now take full width, story list hidden
+      // We shouldn't see the story list sidebar markers
+      expect(frame).not.toContain("Test Story 2"); // Other stories shouldn't be visible
+    });
+
+    it("should render chat header with title and domain on separate lines", async () => {
+      const post = createMockPostWithComments(
+        {
+          title: "Test Title Here",
+          domain: "testdomain.com",
+        },
+        1
+      );
+      app.setPostsForTesting([post]);
+      await app.setSelectedPostForTesting(post);
+
+      // Setup chat mode
+      (app as any).selectedPost = post;
+      (app as any).chatMode = true;
+      (app as any).suggestions = [];
+      (app as any).suggestionsLoading = false;
+      (app as any).suggestionsGenerated = true;
+
+      // Trigger chat panel creation
+      (app as any).detailPanel.remove((app as any).detailScroll.id);
+      (app as any).detailPanel.remove((app as any).shortcutsBar.id);
+      (app as any).createChatPanel();
+      for (const child of (app as any).chatPanel.getChildren()) {
+        (app as any).detailPanel.add(child);
+      }
+
+      await renderOnce();
+      const frame = captureCharFrame();
+
+      // Find lines with title and domain
+      const lines = frame.split("\n");
+      const titleLine = lines.findIndex((l: string) => l.includes("Test Title Here"));
+      const domainLine = lines.findIndex((l: string) => l.includes("testdomain.com"));
+
+      expect(titleLine).toBeGreaterThanOrEqual(0);
+      expect(domainLine).toBeGreaterThanOrEqual(0);
+      expect(domainLine).toBeGreaterThan(titleLine); // Domain after title
+
+      // They should not be on the same line
+      expect(titleLine).not.toBe(domainLine);
+    });
+  });
 });
 
 describe("API Integration", () => {

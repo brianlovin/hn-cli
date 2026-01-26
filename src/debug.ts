@@ -159,6 +159,44 @@ const scenarios: DebugScenario[] = [
       console.log("=== END DEBUG ===\n");
     },
   },
+  {
+    name: "chat-suggestions",
+    setup: async (app) => {
+      const post = createMockPostWithComments(
+        {
+          id: 99999,
+          title: "Test Story for Chat Mode Debugging",
+          domain: "testdomain.com",
+        },
+        2
+      );
+      app.setPostsForTesting([post]);
+      await app.setSelectedPostForTesting(post);
+
+      // Use showChatView to properly enter chat mode (hides story list)
+      (app as any).showChatView();
+
+      // Override suggestions after entering chat mode
+      (app as any).suggestionsLoading = false;
+      (app as any).suggestions = [
+        "What is the main point of this article?",
+        "Are there any controversies in the comments?",
+        "Who are the most active commenters?",
+      ];
+      (app as any).originalSuggestions = [...(app as any).suggestions];
+      (app as any).selectedSuggestionIndex = 2;
+      (app as any).suggestionsGenerated = true;
+      (app as any).renderSuggestions();
+    },
+    afterRender: (app) => {
+      console.log("\n=== CHAT SUGGESTIONS DEBUG ===");
+      console.log(`Suggestions: ${(app as any).suggestions.length}`);
+      console.log(`Selected index: ${(app as any).selectedSuggestionIndex}`);
+      console.log(`Chat mode: ${(app as any).chatMode}`);
+      console.log(`Content area children: ${(app as any).contentArea.getChildren().length}`);
+      console.log("=== END DEBUG ===\n");
+    },
+  },
 ];
 
 async function runDebug() {
