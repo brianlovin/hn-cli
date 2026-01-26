@@ -683,6 +683,12 @@ export class HackerNewsApp {
       this.navigateStory(1);
     } else if (key.name === "k") {
       this.navigateStory(-1);
+    } else if (key.name === "down") {
+      telemetry.track("comment_nav");
+      this.navigateToNextComment();
+    } else if (key.name === "up") {
+      telemetry.track("comment_nav");
+      this.navigateToPreviousComment();
     } else if (key.name === "space" || key.name === " ") {
       telemetry.track("comment_nav");
       // Space navigates to next root comment only (forward)

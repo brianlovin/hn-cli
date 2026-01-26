@@ -89,7 +89,7 @@ export function createShortcutsBar(
 
 // Shortcuts shown in the story detail panel (bottom bar)
 export const DETAIL_SHORTCUTS: ShortcutItem[] = [
-  { key: "␣", desc: "next" },
+  { key: "↑/↓", desc: "comments" },
   { key: "o", desc: "open" },
   { key: "c", desc: "chat" },
   { key: "s", desc: "settings", rightAlign: true },
