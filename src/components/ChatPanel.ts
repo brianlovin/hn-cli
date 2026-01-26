@@ -2,7 +2,7 @@ import {
   BoxRenderable,
   TextRenderable,
   ScrollBoxRenderable,
-  TextareaRenderable,
+  type TextareaRenderable,
   type RenderContext,
 } from "@opentui/core";
 import type { HackerNewsPost } from "../types";
