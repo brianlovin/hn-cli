@@ -8,6 +8,17 @@ import {
   OPENAI_MODELS,
 } from "../config";
 
+const PROVIDER_API_KEY_URLS: Record<Provider, { display: string; full: string }> = {
+  anthropic: {
+    display: "platform.claude.com",
+    full: "https://platform.claude.com/settings/keys",
+  },
+  openai: {
+    display: "platform.openai.com",
+    full: "https://platform.openai.com/api-keys",
+  },
+};
+
 type SettingsItemType =
   | { type: "provider"; provider: Provider; hasKey: boolean }
   | { type: "model"; modelId: string; modelName: string }
@@ -138,11 +149,8 @@ export function renderSettings(
     itemBox.add(label);
 
     if (!hasKey) {
-      const apiKeyUrl = listItem.item.provider === "anthropic"
-        ? "console.anthropic.com"
-        : "platform.openai.com";
       const hint = new TextRenderable(ctx, {
-        content: `${apiKeyUrl} (tab)`,
+        content: `${PROVIDER_API_KEY_URLS[listItem.item.provider].display} (tab)`,
         fg: COLORS.textTertiary,
       });
       itemBox.add(hint);
@@ -322,9 +330,7 @@ export function getSelectedProviderUrl(
   if (!selected) return null;
 
   if (selected.item.type === "provider" && !selected.item.hasKey) {
-    return selected.item.provider === "anthropic"
-      ? "https://console.anthropic.com"
-      : "https://platform.openai.com";
+    return PROVIDER_API_KEY_URLS[selected.item.provider].full;
   }
 
   return null;
