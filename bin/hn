@@ -1,0 +1,25 @@
+#!/bin/sh
+
+# Check if bun is installed
+if ! command -v bun >/dev/null 2>&1; then
+    echo ""
+    echo "Error: Bun runtime is required but not installed."
+    echo ""
+    echo "This CLI requires Bun to run. Please install it first:"
+    echo ""
+    echo "  curl -fsSL https://bun.sh/install | bash"
+    echo ""
+    echo "Or via npm:"
+    echo ""
+    echo "  npm install -g bun"
+    echo ""
+    echo "For more options, visit: https://bun.sh/docs/installation"
+    echo ""
+    exit 1
+fi
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Run the actual CLI with bun
+exec bun "$SCRIPT_DIR/../dist/cli.js" "$@"

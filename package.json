@@ -5,10 +5,11 @@
   "module": "src/index.ts",
   "type": "module",
   "bin": {
-    "hn": "./dist/cli.js"
+    "hn": "./bin/hn"
   },
   "files": [
-    "dist"
+    "dist",
+    "bin"
   ],
   "scripts": {
     "start": "bun run src/index.ts",
