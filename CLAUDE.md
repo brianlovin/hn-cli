@@ -11,9 +11,11 @@ Interactive terminal UI for browsing Hacker News using OpenTUI.
 ## Running
 
 ```sh
-bun run start    # Run the app
-bun run test     # Run tests
-bun run typecheck # Check types
+bun run start      # Run the app
+bun run dev        # Run with watch mode
+bun run dev:update # Run with simulated update notification
+bun run test       # Run tests
+bun run typecheck  # Check types
 ```
 
 ## Keyboard Shortcuts
@@ -40,6 +42,20 @@ bun run typecheck # Check types
 bun run debug              # Test long comment wrapping
 bun run debug story-list   # Test story list view
 bun run debug highlighted-comment # Test comment highlighting
+```
+
+## Development
+
+To test the update notification UI without publishing a new version:
+
+```sh
+bun run dev:update
+```
+
+This simulates running v0.1.0 with v0.3.0 available, showing the update banner in the header. You can customize the versions with environment variables:
+
+```sh
+HN_SIMULATE_VERSION=0.2.0 HN_SIMULATE_LATEST=0.5.0 bun run start
 ```
 
 ## Data Rules (matching briOS website)

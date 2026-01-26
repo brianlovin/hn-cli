@@ -316,11 +316,7 @@ export class HackerNewsApp {
     });
 
     // Create header
-    const { header, state: headerState } = createHeader(this.ctx, {
-      onOpenGitHub: () => {
-        this.callbacks.onOpenUrl?.("https://github.com/brianlovin/hn-cli");
-      },
-    });
+    const { header, state: headerState } = createHeader(this.ctx, {});
     this.headerState = headerState;
 
     // Create content area

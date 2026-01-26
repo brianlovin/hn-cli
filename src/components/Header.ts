@@ -2,10 +2,35 @@ import { BoxRenderable, TextRenderable, type RenderContext } from "@opentui/core
 import { COLORS } from "../theme";
 import { LOADING_CHARS } from "../utils";
 import type { UpdateInfo } from "../version";
-import { getUpdateCommand } from "../version";
+import { getUpdateCommand, currentVersion } from "../version";
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  const platform = process.platform;
+  let clipboardCmd: string[];
+
+  if (platform === "darwin") {
+    clipboardCmd = ["pbcopy"];
+  } else if (platform === "linux") {
+    clipboardCmd = ["xclip", "-selection", "clipboard"];
+  } else if (platform === "win32") {
+    clipboardCmd = ["clip"];
+  } else {
+    return false;
+  }
+
+  try {
+    const proc = Bun.spawn(clipboardCmd, { stdin: "pipe" });
+    proc.stdin.write(text);
+    proc.stdin.end();
+    await proc.exited;
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export interface HeaderCallbacks {
-  onOpenGitHub?: () => void;
+  // Currently unused, reserved for future header interactions
 }
 
 export interface HeaderState {
@@ -13,10 +38,13 @@ export interface HeaderState {
   loadingInterval: ReturnType<typeof setInterval> | null;
   loadingFrame: number;
   rightContainer: BoxRenderable;
-  githubLink: TextRenderable;
+  versionLabel: TextRenderable;
   updateContainer: BoxRenderable;
-  updateLabel: TextRenderable;
+  currentVersionLabel: TextRenderable;
+  updateArrow: TextRenderable;
+  latestVersionLabel: TextRenderable;
   updateCommand: TextRenderable;
+  copiedIndicator: TextRenderable;
 }
 
 export function createHeader(
@@ -60,7 +88,7 @@ export function createHeader(
 
   header.add(leftContainer);
 
-  // Right side container with loading indicator + (GitHub link OR update notification)
+  // Right side container with loading indicator + version + update notification
   const rightContainer = new BoxRenderable(ctx, {
     flexDirection: "row",
     gap: 2,
@@ -74,41 +102,87 @@ export function createHeader(
   });
   rightContainer.add(loadingIndicator);
 
-  // GitHub link (shown by default)
-  const githubLink = new TextRenderable(ctx, {
-    content: "brianlovin/hn-cli",
+  // Version label (shown by default)
+  const versionLabel = new TextRenderable(ctx, {
+    content: `v${currentVersion}`,
     fg: COLORS.textSecondary,
-    onMouseDown: () => {
-      callbacks.onOpenGitHub?.();
-    },
-    onMouseOver: () => {
-      (githubLink as any).fg = COLORS.accent;
-    },
-    onMouseOut: () => {
-      (githubLink as any).fg = COLORS.textSecondary;
-    },
   });
-  rightContainer.add(githubLink);
+  rightContainer.add(versionLabel);
 
-  // Update notification container (hidden initially, replaces GitHub link when update available)
+  // Update notification container (hidden initially, shown when update available)
+  // Shows: "v0.3.0 -> v0.5.0 · bun install -g ..." with latest version in green
   const updateContainer = new BoxRenderable(ctx, {
     flexDirection: "row",
     alignItems: "center",
     gap: 1,
   });
 
-  const updateLabel = new TextRenderable(ctx, {
-    content: "update available",
+  const currentVersionLabel = new TextRenderable(ctx, {
+    content: "",
+    fg: COLORS.textSecondary,
+  });
+
+  const updateArrow = new TextRenderable(ctx, {
+    content: "->",
+    fg: COLORS.textSecondary,
+  });
+
+  const latestVersionLabel = new TextRenderable(ctx, {
+    content: "",
     fg: COLORS.success,
+  });
+
+  const updateSeparator = new TextRenderable(ctx, {
+    content: "·",
+    fg: COLORS.textSecondary,
+  });
+
+  // Track state for the update command hover/click behavior
+  let copiedTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  // Copied indicator - shows checkmark after copying, empty space otherwise (to avoid layout shift)
+  const copiedIndicator = new TextRenderable(ctx, {
+    content: " ",
+    fg: COLORS.success,
+    width: 2,
   });
 
   const updateCommand = new TextRenderable(ctx, {
     content: "",
     fg: COLORS.textSecondary,
+    onMouseOver: () => {
+      (updateCommand as any).fg = COLORS.textPrimary;
+    },
+    onMouseOut: () => {
+      (updateCommand as any).fg = COLORS.textSecondary;
+    },
+    onMouseDown: () => {
+      // Copy the command (without parentheses) to clipboard
+      const command = getUpdateCommand();
+      copyToClipboard(command);
+
+      // Show checkmark indicator
+      copiedIndicator.content = "✓";
+
+      // Clear any existing timeout
+      if (copiedTimeout) {
+        clearTimeout(copiedTimeout);
+      }
+
+      // Hide checkmark after 3 seconds
+      copiedTimeout = setTimeout(() => {
+        copiedIndicator.content = " ";
+        copiedTimeout = null;
+      }, 3000);
+    },
   });
 
-  updateContainer.add(updateLabel);
+  updateContainer.add(currentVersionLabel);
+  updateContainer.add(updateArrow);
+  updateContainer.add(latestVersionLabel);
+  updateContainer.add(updateSeparator);
   updateContainer.add(updateCommand);
+  updateContainer.add(copiedIndicator);
   // Note: updateContainer is NOT added to rightContainer initially
 
   header.add(rightContainer);
@@ -118,10 +192,13 @@ export function createHeader(
     loadingInterval: null,
     loadingFrame: 0,
     rightContainer,
-    githubLink,
+    versionLabel,
     updateContainer,
-    updateLabel,
+    currentVersionLabel,
+    updateArrow,
+    latestVersionLabel,
     updateCommand,
+    copiedIndicator,
   };
 
   return { header, state };
@@ -132,9 +209,12 @@ export function showUpdateNotification(
   updateInfo: UpdateInfo | null,
 ): void {
   if (updateInfo?.hasUpdate) {
-    // Hide GitHub link and show update notification
-    state.rightContainer.remove(state.githubLink.id);
+    // Show update notification: "v0.3.0 -> v0.5.0 · bun install -g ..."
+    state.currentVersionLabel.content = `v${updateInfo.currentVersion}`;
+    state.latestVersionLabel.content = `v${updateInfo.latestVersion}`;
     state.updateCommand.content = getUpdateCommand();
+    // Hide regular version label, show update container
+    state.versionLabel.content = "";
     // Only add if not already present
     const children = state.rightContainer.getChildren();
     const hasUpdateContainer = children.some(child => child.id === state.updateContainer.id);
@@ -142,14 +222,9 @@ export function showUpdateNotification(
       state.rightContainer.add(state.updateContainer);
     }
   } else {
-    // Hide update notification and show GitHub link
+    // Hide update notification, show version label
+    state.versionLabel.content = `v${currentVersion}`;
     state.rightContainer.remove(state.updateContainer.id);
-    // Only add if not already present
-    const children = state.rightContainer.getChildren();
-    const hasGithubLink = children.some(child => child.id === state.githubLink.id);
-    if (!hasGithubLink) {
-      state.rightContainer.add(state.githubLink);
-    }
   }
 }
 

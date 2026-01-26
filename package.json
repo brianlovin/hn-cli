@@ -13,6 +13,7 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "dev": "bun run --watch src/index.ts",
+    "dev:update": "HN_SIMULATE_VERSION=0.1.0 HN_SIMULATE_LATEST=0.3.0 bun run --watch src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target bun --minify --entry-naming cli.js",
     "prepublishOnly": "bun run build && bun run typecheck",
     "test": "bun test",
