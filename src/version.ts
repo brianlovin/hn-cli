@@ -1,7 +1,13 @@
-import { version as currentVersion } from "../package.json";
+import { version as packageVersion } from "../package.json";
 
 const REGISTRY_URL = "https://registry.npmjs.org/@brianlovin/hn-cli/latest";
 const PACKAGE_NAME = "@brianlovin/hn-cli";
+
+// Allow simulating different versions for testing
+// Usage: HN_SIMULATE_VERSION=0.1.0 HN_SIMULATE_LATEST=0.3.0 bun run start
+const currentVersion =
+  process.env.HN_SIMULATE_VERSION ?? packageVersion;
+const simulatedLatestVersion = process.env.HN_SIMULATE_LATEST;
 
 export interface UpdateInfo {
   hasUpdate: boolean;
@@ -31,6 +37,15 @@ function isNewerVersion(current: string, latest: string): boolean {
  * Returns null if check fails (network error, etc).
  */
 export async function checkForUpdates(): Promise<UpdateInfo | null> {
+  // If simulated latest version is set, skip the network call
+  if (simulatedLatestVersion) {
+    return {
+      hasUpdate: isNewerVersion(currentVersion, simulatedLatestVersion),
+      currentVersion,
+      latestVersion: simulatedLatestVersion,
+    };
+  }
+
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3000);
@@ -72,9 +87,9 @@ export function getUpdateCommand(): string {
   // Check if running via bun or npm based on process info
   const isBun = process.versions.bun !== undefined;
   if (isBun) {
-    return `bun install -g ${PACKAGE_NAME}`;
+    return `bun install -g ${PACKAGE_NAME}@latest`;
   }
-  return `npm install -g ${PACKAGE_NAME}`;
+  return `npm install -g ${PACKAGE_NAME}@latest`;
 }
 
 export { currentVersion };
