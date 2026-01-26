@@ -43,9 +43,9 @@ export function createHeader(
     alignItems: "center",
   });
 
-  // Delta icon
+  // Logo icon
   const icon = new TextRenderable(ctx, {
-    content: "\u2206",
+    content: "■",
     fg: COLORS.accent,
     width: 2,
     paddingLeft: 1,
