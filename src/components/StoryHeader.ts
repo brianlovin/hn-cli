@@ -38,7 +38,7 @@ export function createStoryHeader(
     maxHeight: 2,
     onMouseDown: () => callbacks.onOpenStoryUrl(),
     onMouseOver: () => {
-      (titleText as any).fg = COLORS.link;
+      (titleText as any).fg = COLORS.accent;
     },
     onMouseOut: () => {
       (titleText as any).fg = COLORS.textPrimary;
@@ -81,7 +81,7 @@ export function renderStoryHeader(
     maxHeight: 2,
     onMouseDown: () => callbacks.onOpenStoryUrl(),
     onMouseOver: () => {
-      (titleText as any).fg = COLORS.link;
+      (titleText as any).fg = COLORS.accent;
     },
     onMouseOut: () => {
       (titleText as any).fg = COLORS.textPrimary;
