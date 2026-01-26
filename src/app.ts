@@ -110,6 +110,10 @@ export interface AppCallbacks {
   onExit?: () => void;
 }
 
+export interface InitializeOptions {
+  requestedStoryId?: number;
+}
+
 export class HackerNewsApp {
   private renderer: CliRenderer;
   private ctx: RenderContext;
@@ -174,6 +178,9 @@ export class HackerNewsApp {
   private aiIndicatorFrame = 0;
   private aiIndicatorInterval: ReturnType<typeof setInterval> | null = null;
 
+  // Requested story ID from command line flag
+  private requestedStoryId: number | undefined;
+
   constructor(renderer: CliRenderer, callbacks: AppCallbacks = {}) {
     this.renderer = renderer;
     this.ctx = renderer;
@@ -196,10 +203,18 @@ export class HackerNewsApp {
     saveCache(cache);
   }
 
-  async initialize() {
+  async initialize(options: InitializeOptions = {}) {
+    this.requestedStoryId = options.requestedStoryId;
+
     await detectTheme(this.renderer);
     this.setupLayout();
     this.setupKeyboardHandlers();
+
+    // If a specific story is requested, skip cache and load fresh
+    if (this.requestedStoryId) {
+      await this.loadPosts();
+      return;
+    }
 
     // Try to restore from cache first
     const cached = loadCache();
@@ -621,6 +636,12 @@ export class HackerNewsApp {
     try {
       this.posts = await getRankedPosts();
       this.storiesFetchedAt = Date.now();
+
+      // Handle requested story ID from command line flag
+      if (this.requestedStoryId) {
+        await this.handleRequestedStory();
+      }
+
       stopEmptyStateAnimation(this.emptyStateState);
 
       // Remove loading state and add the main layout
@@ -644,6 +665,27 @@ export class HackerNewsApp {
     } catch (error) {
       stopEmptyStateAnimation(this.emptyStateState);
       log("[ERROR]", "Error loading posts:", error);
+    }
+  }
+
+  private async handleRequestedStory() {
+    if (!this.requestedStoryId) return;
+
+    // Check if the requested story is already in the posts list
+    const existingIndex = this.posts.findIndex((p) => p.id === this.requestedStoryId);
+
+    if (existingIndex !== -1) {
+      // Story exists in list - move it to the front
+      const [story] = this.posts.splice(existingIndex, 1);
+      if (story) {
+        this.posts.unshift(story);
+      }
+    } else {
+      // Story not in list - fetch it and prepend
+      const requestedPost = await getPostById(this.requestedStoryId);
+      if (requestedPost) {
+        this.posts.unshift(requestedPost);
+      }
     }
   }
 
