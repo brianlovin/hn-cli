@@ -1,4 +1,5 @@
 import { BoxRenderable, TextRenderable, type RenderContext } from "@opentui/core";
+import { spawn } from "node:child_process";
 import { COLORS } from "../theme";
 import { LOADING_CHARS } from "../utils";
 import type { UpdateInfo } from "../version";
@@ -19,11 +20,13 @@ async function copyToClipboard(text: string): Promise<boolean> {
   }
 
   try {
-    const proc = Bun.spawn(clipboardCmd, { stdin: "pipe" });
-    proc.stdin.write(text);
-    proc.stdin.end();
-    await proc.exited;
-    return true;
+    return new Promise((resolve) => {
+      const proc = spawn(clipboardCmd[0], clipboardCmd.slice(1), { stdio: ["pipe", "ignore", "ignore"] });
+      proc.stdin?.write(text);
+      proc.stdin?.end();
+      proc.on("close", () => resolve(true));
+      proc.on("error", () => resolve(false));
+    });
   } catch {
     return false;
   }
