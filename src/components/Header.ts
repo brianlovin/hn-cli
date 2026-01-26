@@ -82,7 +82,7 @@ export function createHeader(
       callbacks.onOpenGitHub?.();
     },
     onMouseOver: () => {
-      (githubLink as any).fg = COLORS.link;
+      (githubLink as any).fg = COLORS.accent;
     },
     onMouseOut: () => {
       (githubLink as any).fg = COLORS.textSecondary;
