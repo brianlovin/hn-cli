@@ -97,3 +97,16 @@ export function updateStoryItemStyle(
     }
   }
 }
+
+export function updateStoryChevron(
+  item: BoxRenderable,
+  character: string,
+): void {
+  const children = item.getChildren();
+  if (children.length >= 1) {
+    const chevronIndicator = children[0] as TextRenderable;
+    if (chevronIndicator && "content" in chevronIndicator) {
+      chevronIndicator.content = character;
+    }
+  }
+}

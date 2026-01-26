@@ -1,4 +1,4 @@
-import { BoxRenderable, TextRenderable, type RenderContext } from "@opentui/core";
+import { BoxRenderable, TextRenderable, type RenderContext, bold, t } from "@opentui/core";
 import { COLORS } from "../theme";
 import {
   type Provider,
@@ -31,6 +31,7 @@ export function initSettingsState(): SettingsState {
 function getSettingsList(chatProvider: Provider): SettingsListItem[] {
   const hasAnthropic = !!getApiKey("anthropic");
   const hasOpenAI = !!getApiKey("openai");
+  const hasAnyKey = hasAnthropic || hasOpenAI;
   const models = chatProvider === "anthropic" ? ANTHROPIC_MODELS : OPENAI_MODELS;
 
   const items: SettingsListItem[] = [];
@@ -45,12 +46,14 @@ function getSettingsList(chatProvider: Provider): SettingsListItem[] {
     enabled: true,
   });
 
-  // Model options for current provider
-  for (const model of models) {
-    items.push({
-      item: { type: "model", modelId: model.id, modelName: model.name },
-      enabled: true,
-    });
+  // Model options only shown when at least one provider has a key
+  if (hasAnyKey) {
+    for (const model of models) {
+      items.push({
+        item: { type: "model", modelId: model.id, modelName: model.name },
+        enabled: true,
+      });
+    }
   }
 
   // Action buttons
@@ -59,7 +62,7 @@ function getSettingsList(chatProvider: Provider): SettingsListItem[] {
     enabled: true,
   });
 
-  if (hasAnthropic || hasOpenAI) {
+  if (hasAnyKey) {
     items.push({
       item: { type: "action", action: "clear_keys" },
       enabled: true,
@@ -97,8 +100,8 @@ export function renderSettings(
 
   // Provider section
   const providerHeader = new TextRenderable(ctx, {
-    content: "Provider",
-    fg: COLORS.textPrimary,
+    content: t`${bold("Provider")}`,
+    fg: COLORS.textSecondary,
   });
   container.add(providerHeader);
 
@@ -114,7 +117,6 @@ export function renderSettings(
     const itemBox = new BoxRenderable(ctx, {
       flexDirection: "row",
       gap: 1,
-      paddingLeft: 2,
     });
 
     const indicator = new TextRenderable(ctx, {
@@ -146,47 +148,49 @@ export function renderSettings(
     container.add(itemBox);
   }
 
-  container.add(new BoxRenderable(ctx, { height: 1 }));
+  // Model section - only shown when there are model items
+  const hasModelItems = items.some(item => item.item.type === "model");
+  if (hasModelItems) {
+    container.add(new BoxRenderable(ctx, { height: 1 }));
 
-  // Model section
-  const modelHeader = new TextRenderable(ctx, {
-    content: "Model",
-    fg: COLORS.textPrimary,
-  });
-  container.add(modelHeader);
-
-  for (let i = 0; i < items.length; i++) {
-    const listItem = items[i];
-    if (!listItem || listItem.item.type !== "model") continue;
-
-    const isSelected = i === state.selectedIndex;
-    const isActive = listItem.item.modelId === currentModel;
-
-    const itemBox = new BoxRenderable(ctx, {
-      flexDirection: "row",
-      gap: 1,
-      paddingLeft: 2,
+    const modelHeader = new TextRenderable(ctx, {
+      content: t`${bold("Model")}`,
+      fg: COLORS.textSecondary,
     });
+    container.add(modelHeader);
 
-    const indicator = new TextRenderable(ctx, {
-      content: isSelected ? "›" : " ",
-      fg: COLORS.accent,
-    });
-    itemBox.add(indicator);
+    for (let i = 0; i < items.length; i++) {
+      const listItem = items[i];
+      if (!listItem || listItem.item.type !== "model") continue;
 
-    const radio = new TextRenderable(ctx, {
-      content: isActive ? "●" : "○",
-      fg: isActive ? COLORS.accent : COLORS.textSecondary,
-    });
-    itemBox.add(radio);
+      const isSelected = i === state.selectedIndex;
+      const isActive = listItem.item.modelId === currentModel;
 
-    const label = new TextRenderable(ctx, {
-      content: listItem.item.modelName,
-      fg: isSelected ? COLORS.accent : COLORS.textPrimary,
-    });
-    itemBox.add(label);
+      const itemBox = new BoxRenderable(ctx, {
+        flexDirection: "row",
+        gap: 1,
+      });
 
-    container.add(itemBox);
+      const indicator = new TextRenderable(ctx, {
+        content: isSelected ? "›" : " ",
+        fg: COLORS.accent,
+      });
+      itemBox.add(indicator);
+
+      const radio = new TextRenderable(ctx, {
+        content: isActive ? "●" : "○",
+        fg: isActive ? COLORS.accent : COLORS.textSecondary,
+      });
+      itemBox.add(radio);
+
+      const label = new TextRenderable(ctx, {
+        content: listItem.item.modelName,
+        fg: isSelected ? COLORS.accent : COLORS.textPrimary,
+      });
+      itemBox.add(label);
+
+      container.add(itemBox);
+    }
   }
 
   container.add(new BoxRenderable(ctx, { height: 1 }));
@@ -210,7 +214,6 @@ export function renderSettings(
     const itemBox = new BoxRenderable(ctx, {
       flexDirection: "row",
       gap: 1,
-      paddingLeft: 2,
     });
 
     const indicator = new TextRenderable(ctx, {

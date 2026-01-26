@@ -136,7 +136,6 @@ function renderKeyInput(
   const inputContainer = new BoxRenderable(ctx, {
     width: "100%",
     flexDirection: "row",
-    gap: 1,
   });
 
   const inputPrompt = new TextRenderable(ctx, {
@@ -145,8 +144,11 @@ function renderKeyInput(
   });
   inputContainer.add(inputPrompt);
 
+  // Explicit spacer to maintain gap even with long input text
+  const spacer = new BoxRenderable(ctx, { width: 1 });
+  inputContainer.add(spacer);
+
   state.keyInput = new InputRenderable(ctx, {
-    width: "100%",
     flexGrow: 1,
     placeholder:
       state.selectedProvider === "anthropic" ? "sk-ant-..." : "sk-...",

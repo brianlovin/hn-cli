@@ -8,12 +8,15 @@ import { COLORS } from "../theme";
 import {
   createStoryItem,
   updateStoryItemStyle,
+  updateStoryChevron,
   type StoryItemCallbacks,
 } from "./StoryItem";
+import { createShortcutsBar, STORY_LIST_SHORTCUTS } from "./ShortcutsBar";
 
 export interface StoryListState {
   panel: BoxRenderable;
   scroll: ScrollBoxRenderable;
+  shortcutsBar: BoxRenderable;
   items: Map<number, BoxRenderable>;
 }
 
@@ -44,11 +47,16 @@ export function createStoryList(ctx: RenderContext): StoryListState {
     },
   });
 
+  // Shortcuts bar at the bottom of the story list
+  const shortcutsBar = createShortcutsBar(ctx, STORY_LIST_SHORTCUTS);
+
   panel.add(scroll);
+  panel.add(shortcutsBar);
 
   return {
     panel,
     scroll,
+    shortcutsBar,
     items: new Map(),
   };
 }
@@ -115,4 +123,15 @@ export function scrollToStory(
     state.scroll.scrollTop = itemBottom - viewportHeight;
   }
   // Otherwise, item is already visible - don't scroll
+}
+
+export function updateStoryIndicator(
+  state: StoryListState,
+  index: number,
+  character: string,
+): void {
+  const item = state.items.get(index);
+  if (item) {
+    updateStoryChevron(item, character);
+  }
 }

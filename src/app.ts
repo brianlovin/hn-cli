@@ -5,6 +5,7 @@ import type { HackerNewsPost } from "./types";
 import {
   type Provider,
   getConfiguredProvider,
+  hasAnyApiKey,
   setModel,
   saveConfig,
   loadConfig,
@@ -27,6 +28,7 @@ import {
   renderStoryList,
   updateStorySelection,
   scrollToStory,
+  updateStoryIndicator,
   type StoryListState,
 } from "./components/StoryList";
 import {
@@ -79,6 +81,7 @@ import {
   setProvider,
   type ChatServiceState,
 } from "./services/ChatService";
+import { generateTLDR, type TLDRResult } from "./services/TLDRService";
 import {
   loadCache,
   saveCache,
@@ -142,6 +145,8 @@ export class HackerNewsApp {
   private authSetupMode = false;
   private settingsMode = false;
   private authSetupFromSettings = false; // Track if auth setup was triggered from settings
+  private settingsFromChatMode = false; // Track if settings was opened from chat mode
+  private settingsIntent: "settings" | "chat" | "tldr" = "settings"; // Track why settings was opened
 
   // Update notification state
   private updateInfo: UpdateInfo | null = null;
@@ -155,6 +160,19 @@ export class HackerNewsApp {
 
   // Cache timestamp for when stories were fetched
   private storiesFetchedAt = 0;
+
+  // TLDR cache (keyed by story ID, cleared on app quit or regeneration)
+  private tldrCache: Map<number, TLDRResult> = new Map();
+  private tldrErrorIds: Set<number> = new Set(); // Track stories with TLDR errors
+  private tldrLoading = false;
+  private tldrLoadingStoryId: number | null = null; // Track which story is loading TLDR
+  private tldrLoadingFrame = 0;
+  private tldrLoadingInterval: ReturnType<typeof setInterval> | null = null;
+
+  // AI activity indicator (shows loading animation on story list chevron)
+  private aiActiveIndices: Set<number> = new Set();
+  private aiIndicatorFrame = 0;
+  private aiIndicatorInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(renderer: CliRenderer, callbacks: AppCallbacks = {}) {
     this.renderer = renderer;
@@ -340,15 +358,15 @@ export class HackerNewsApp {
     }
 
     if (key.name === "j" || key.name === "down") {
-      navigateSettings(this.settingsState, 1, this.chatServiceState?.provider || "anthropic");
+      navigateSettings(this.settingsState, 1, getConfiguredProvider() || "anthropic");
       this.rerenderSettings();
     } else if (key.name === "k" || key.name === "up") {
-      navigateSettings(this.settingsState, -1, this.chatServiceState?.provider || "anthropic");
+      navigateSettings(this.settingsState, -1, getConfiguredProvider() || "anthropic");
       this.rerenderSettings();
     } else if (key.name === "return" || key.name === "enter") {
       const action = selectSettingsItem(
         this.settingsState,
-        this.chatServiceState?.provider || "anthropic",
+        getConfiguredProvider() || "anthropic",
       );
       if (action) {
         this.handleSettingsAction(action);
@@ -357,15 +375,15 @@ export class HackerNewsApp {
   }
 
   private handleSettingsAction(action: any) {
-    if (!this.chatServiceState) return;
-
     switch (action.type) {
       case "switch_provider":
-        setProvider(this.chatServiceState, action.provider);
         const switchConfig = loadConfig();
         switchConfig.provider = action.provider;
         saveConfig(switchConfig);
-        resetChatServiceClients(this.chatServiceState);
+        if (this.chatServiceState) {
+          setProvider(this.chatServiceState, action.provider);
+          resetChatServiceClients(this.chatServiceState);
+        }
         this.rerenderSettings();
         break;
 
@@ -405,14 +423,23 @@ export class HackerNewsApp {
 
       case "clear_keys":
         clearAllApiKeys();
-        resetChatServiceClients(this.chatServiceState);
+        // Reset chat state completely - user can't chat without API keys
+        this.chatServiceState = null;
+        this.chatMode = false;
+        // Ensure we go to comments view, not chat view
+        this.settingsFromChatMode = false;
+        // Clear all saved chat sessions since they're no longer usable
+        this.savedChatSessions.clear();
+        // Reset story view modes to comments
+        this.storyViewModes.clear();
         this.hideSettings();
-        this.hideChatView();
         break;
 
       case "select_model":
         setModel(action.provider, action.modelId);
-        resetChatServiceClients(this.chatServiceState);
+        if (this.chatServiceState) {
+          resetChatServiceClients(this.chatServiceState);
+        }
         this.rerenderSettings();
         break;
     }
@@ -445,11 +472,6 @@ export class HackerNewsApp {
 
     if (key.name === "escape") {
       this.hideChatView();
-      return;
-    }
-
-    if (key.name === "." && key.super) {
-      this.showSettings();
       return;
     }
 
@@ -568,22 +590,27 @@ export class HackerNewsApp {
   }
 
   private handleMainKey(key: any) {
-    const hasCmdMod = key.super;
+    if (key.name === "s") {
+      this.settingsIntent = "settings";
+      this.showSettings();
+      return;
+    }
 
-    if (key.name === "j" && !hasCmdMod) {
+    if (key.name === "j") {
       this.navigateStory(1);
-    } else if (key.name === "k" && !hasCmdMod) {
+    } else if (key.name === "k") {
       this.navigateStory(-1);
-    } else if (key.name === "j" && hasCmdMod) {
+    } else if (key.name === "space" || key.name === " ") {
+      // Space navigates to next root comment only (forward)
       this.navigateToNextComment();
-    } else if (key.name === "k" && hasCmdMod) {
-      this.navigateToPreviousComment();
     } else if (key.name === "o") {
       this.openStoryUrl();
     } else if (key.name === "c") {
       this.openChat();
     } else if (key.name === "r") {
       this.refresh();
+    } else if (key.name === "t") {
+      this.handleTldrRequest();
     }
   }
 
@@ -623,6 +650,12 @@ export class HackerNewsApp {
   async selectStory(index: number) {
     if (index < 0 || index >= this.posts.length) return;
     if (this.renderer.isDestroyed) return;
+
+    // Stop TLDR loading animation in detail view when switching stories
+    // (TLDR generation continues in background - AI indicator keeps showing)
+    if (this.tldrLoading) {
+      this.stopTldrLoadingAnimation();
+    }
 
     // If we're in chat mode, save the current chat session before switching
     if (this.chatMode && this.selectedPost && this.chatPanelState) {
@@ -675,9 +708,22 @@ export class HackerNewsApp {
           this.storyDetailState.panel.add(this.storyDetailState.header);
           this.storyDetailState.panel.add(this.storyDetailState.scroll);
           this.storyDetailState.panel.add(this.storyDetailState.shortcutsBar);
+          // Check if this story is currently loading TLDR
+          const isLoadingTldr = this.tldrLoading && this.tldrLoadingStoryId === fullPost.id;
+          const cachedTldr = this.tldrCache.get(fullPost.id) || null;
+          const hasError = this.tldrErrorIds.has(fullPost.id);
           renderStoryDetail(this.ctx, this.storyDetailState, fullPost, {
             onOpenStoryUrl: () => this.openStoryUrl(),
+          }, {
+            tldr: cachedTldr,
+            isLoading: isLoadingTldr,
+            loadingFrame: this.tldrLoadingFrame,
+            hasError,
           });
+          // Restart loading animation if this story is loading
+          if (isLoadingTldr) {
+            this.startTldrLoadingAnimation();
+          }
         }
       }
     } catch (error) {
@@ -705,6 +751,153 @@ export class HackerNewsApp {
     if (newIndex >= 0 && newIndex < this.posts.length) {
       this.selectStory(newIndex);
     }
+  }
+
+  private handleTldrRequest() {
+    if (!this.selectedPost) return;
+
+    // If no API key, go to settings to add one
+    // After adding, will automatically generate TLDR
+    if (!hasAnyApiKey()) {
+      this.settingsIntent = "tldr";
+      this.showSettings();
+      return;
+    }
+
+    // If already loading, ignore
+    if (this.tldrLoading) return;
+
+    const storyId = this.selectedPost.id;
+
+    // Clear any existing TLDR or error state and regenerate
+    this.tldrCache.delete(storyId);
+    this.tldrErrorIds.delete(storyId);
+
+    // Get the configured provider
+    const provider = getConfiguredProvider();
+    if (!provider) return;
+
+    // Start loading with animation
+    this.tldrLoading = true;
+    this.tldrLoadingStoryId = storyId;
+    this.tldrLoadingFrame = 0;
+    this.rerenderCurrentStory();
+
+    // Start AI indicator on story list
+    this.startAiIndicator(this.selectedIndex);
+
+    // Start loading animation interval (for detail view)
+    this.startTldrLoadingAnimation();
+
+    const storyIndex = this.selectedIndex;
+
+    // Generate TLDR
+    generateTLDR(this.selectedPost, provider, {
+      onComplete: (tldr) => {
+        if (this.renderer.isDestroyed) return;
+        this.tldrCache.set(storyId, tldr);
+        this.tldrLoading = false;
+        this.tldrLoadingStoryId = null;
+        this.stopTldrLoadingAnimation();
+        this.stopAiIndicator(storyIndex);
+        // Only rerender if we're viewing the story that just completed
+        if (this.selectedPost?.id === storyId) {
+          this.rerenderCurrentStory();
+        }
+      },
+      onError: (error) => {
+        log("[ERROR]", "TLDR generation failed:", error);
+        this.tldrErrorIds.add(storyId);
+        this.tldrLoading = false;
+        this.tldrLoadingStoryId = null;
+        this.stopTldrLoadingAnimation();
+        this.stopAiIndicator(storyIndex);
+        // Only rerender if we're viewing the story that failed
+        if (this.selectedPost?.id === storyId) {
+          this.rerenderCurrentStory();
+        }
+      },
+    });
+  }
+
+  private startTldrLoadingAnimation() {
+    this.stopTldrLoadingAnimation(); // Clear any existing interval
+    this.tldrLoadingInterval = setInterval(() => {
+      if (this.renderer.isDestroyed || !this.tldrLoading) {
+        this.stopTldrLoadingAnimation();
+        return;
+      }
+      // Only animate if we're viewing the loading story
+      if (this.selectedPost?.id === this.tldrLoadingStoryId) {
+        this.tldrLoadingFrame = (this.tldrLoadingFrame + 1) % 10;
+        this.rerenderCurrentStory();
+      }
+    }, 80);
+  }
+
+  private stopTldrLoadingAnimation() {
+    if (this.tldrLoadingInterval) {
+      clearInterval(this.tldrLoadingInterval);
+      this.tldrLoadingInterval = null;
+    }
+  }
+
+  private startAiIndicator(index: number) {
+    this.aiActiveIndices.add(index);
+
+    // Start animation interval if not already running
+    if (!this.aiIndicatorInterval) {
+      this.aiIndicatorInterval = setInterval(() => {
+        if (this.renderer.isDestroyed || this.aiActiveIndices.size === 0) {
+          this.stopAiIndicatorAnimation();
+          return;
+        }
+        this.aiIndicatorFrame = (this.aiIndicatorFrame + 1) % LOADING_CHARS.length;
+        const loadingChar = LOADING_CHARS[this.aiIndicatorFrame]!;
+        for (const idx of this.aiActiveIndices) {
+          updateStoryIndicator(this.storyListState, idx, loadingChar);
+        }
+      }, 80);
+    }
+  }
+
+  private stopAiIndicator(index: number) {
+    this.aiActiveIndices.delete(index);
+
+    // Restore the chevron for this story
+    const isSelected = index === this.selectedIndex;
+    updateStoryIndicator(this.storyListState, index, isSelected ? "\u203A" : "\u2022");
+
+    // Stop animation if no more active indicators
+    if (this.aiActiveIndices.size === 0) {
+      this.stopAiIndicatorAnimation();
+    }
+  }
+
+  private stopAiIndicatorAnimation() {
+    if (this.aiIndicatorInterval) {
+      clearInterval(this.aiIndicatorInterval);
+      this.aiIndicatorInterval = null;
+    }
+  }
+
+  private rerenderCurrentStory() {
+    if (!this.selectedPost || this.chatMode) return;
+
+    const storyId = this.selectedPost.id;
+    const tldr = this.tldrCache.get(storyId) || null;
+    // Only show loading state if THIS story is the one loading
+    const isLoadingThisStory = this.tldrLoading && this.tldrLoadingStoryId === storyId;
+    const hasError = this.tldrErrorIds.has(storyId);
+
+    renderStoryDetail(this.ctx, this.storyDetailState, this.selectedPost, {
+      onOpenStoryUrl: () => this.openStoryUrl(),
+    }, {
+      tldr,
+      isLoading: isLoadingThisStory,
+      loadingFrame: this.tldrLoadingFrame,
+      hasError,
+    });
   }
 
   private showChatViewForCurrentStory() {
@@ -784,7 +977,10 @@ export class HackerNewsApp {
       this.chatServiceState = initChatServiceState(provider);
       this.showChatView();
     } else {
-      this.showAuthSetup();
+      // No API key configured - go to settings to add one
+      // After adding, will automatically proceed to chat
+      this.settingsIntent = "chat";
+      this.showSettings();
     }
   }
 
@@ -878,10 +1074,16 @@ export class HackerNewsApp {
     this.storyDetailState.panel.add(this.storyDetailState.scroll);
     this.storyDetailState.panel.add(this.storyDetailState.shortcutsBar);
 
-    // Re-render the current story
+    // Re-render the current story with cached TLDR if available
     if (this.selectedPost) {
+      const cachedTldr = this.tldrCache.get(this.selectedPost.id) || null;
+      const hasError = this.tldrErrorIds.has(this.selectedPost.id);
       renderStoryDetail(this.ctx, this.storyDetailState, this.selectedPost, {
         onOpenStoryUrl: () => this.openStoryUrl(),
+      }, {
+        tldr: cachedTldr,
+        isLoading: false,
+        hasError,
       });
     }
 
@@ -919,6 +1121,10 @@ export class HackerNewsApp {
     // Start typing indicator animation
     startTypingIndicator(this.ctx, this.chatPanelState, this.chatServiceState.provider);
 
+    // Start AI indicator on story list
+    const storyIndex = this.selectedIndex;
+    this.startAiIndicator(storyIndex);
+
     let receivedFirstText = false;
 
     await streamAIResponse(
@@ -942,6 +1148,7 @@ export class HackerNewsApp {
           if (this.chatPanelState) {
             stopTypingIndicator(this.chatPanelState);
           }
+          this.stopAiIndicator(storyIndex);
           this.saveToCache();
           this.generateFollowUpQuestionsIfNeeded();
         },
@@ -949,6 +1156,7 @@ export class HackerNewsApp {
           if (this.chatPanelState) {
             stopTypingIndicator(this.chatPanelState);
           }
+          this.stopAiIndicator(storyIndex);
           const providerName =
             this.chatServiceState?.provider === "anthropic" ? "Anthropic" : "OpenAI";
           if (this.chatPanelState?.messages[assistantMsgIndex]) {
@@ -1182,6 +1390,11 @@ export class HackerNewsApp {
   private hideAuthSetup() {
     this.authSetupMode = false;
 
+    // Blur the input field to clear cursor state
+    if (this.authSetupState?.keyInput) {
+      this.authSetupState.keyInput.blur();
+    }
+
     // Remove auth setup components
     for (const child of this.storyDetailState.panel.getChildren()) {
       this.storyDetailState.panel.remove(child.id);
@@ -1200,10 +1413,16 @@ export class HackerNewsApp {
     this.storyDetailState.panel.add(this.storyDetailState.scroll);
     this.storyDetailState.panel.add(this.storyDetailState.shortcutsBar);
 
-    // Re-render the current story
+    // Re-render the current story with cached TLDR if available
     if (this.selectedPost) {
+      const cachedTldr = this.tldrCache.get(this.selectedPost.id) || null;
+      const hasError = this.tldrErrorIds.has(this.selectedPost.id);
       renderStoryDetail(this.ctx, this.storyDetailState, this.selectedPost, {
         onOpenStoryUrl: () => this.openStoryUrl(),
+      }, {
+        tldr: cachedTldr,
+        isLoading: false,
+        hasError,
       });
     }
 
@@ -1220,15 +1439,31 @@ export class HackerNewsApp {
     }
     saveConfig(config);
 
-    // Reset flag so we go to chat view, not back to settings
+    // Hide auth setup first
     this.authSetupFromSettings = false;
     this.hideAuthSetup();
+
+    // Initialize chat service for the new provider
     this.chatServiceState = initChatServiceState(provider);
-    this.showChatView();
+
+    // Handle based on what the user originally wanted to do
+    if (this.settingsIntent === "chat") {
+      this.showChatView();
+    } else if (this.settingsIntent === "tldr") {
+      // Go back to comments view and trigger TLDR
+      this.handleTldrRequest();
+    } else {
+      // Intent was "settings" - go back to settings to show model picker
+      this.showSettings();
+    }
+
+    // Reset intent
+    this.settingsIntent = "settings";
   }
 
   private showSettings() {
     this.settingsMode = true;
+    this.settingsFromChatMode = this.chatMode; // Remember where we came from
     this.settingsState = initSettingsState();
 
     // Cancel any pending loading interval
@@ -1269,7 +1504,7 @@ export class HackerNewsApp {
     const settingsUI = renderSettings(
       this.ctx,
       this.settingsState,
-      this.chatServiceState?.provider || "anthropic",
+      getConfiguredProvider() || "anthropic",
     );
     this.storyDetailState.panel.add(settingsUI);
   }
@@ -1282,8 +1517,9 @@ export class HackerNewsApp {
       this.storyDetailState.panel.remove(child.id);
     }
 
-    // Re-create and add chat panel
-    if (this.selectedPost && this.chatServiceState) {
+    // Restore to the view we came from
+    if (this.settingsFromChatMode && this.selectedPost && this.chatServiceState) {
+      // Restore to chat view
       this.chatPanelState = createChatPanel(this.ctx, this.selectedPost, {
         onOpenStoryUrl: () => this.openStoryUrl(),
         onSubmit: () => this.sendChatMessage(),
@@ -1305,6 +1541,24 @@ export class HackerNewsApp {
 
       // Restore or generate suggestions
       this.restoreSuggestionsFromSession(savedSession);
+    } else {
+      // Restore to comments view
+      this.storyDetailState.panel.add(this.storyDetailState.header);
+      this.storyDetailState.panel.add(this.storyDetailState.scroll);
+      this.storyDetailState.panel.add(this.storyDetailState.shortcutsBar);
+
+      // Re-render the current story with cached TLDR if available
+      if (this.selectedPost) {
+        const cachedTldr = this.tldrCache.get(this.selectedPost.id) || null;
+        const hasError = this.tldrErrorIds.has(this.selectedPost.id);
+        renderStoryDetail(this.ctx, this.storyDetailState, this.selectedPost, {
+          onOpenStoryUrl: () => this.openStoryUrl(),
+        }, {
+          tldr: cachedTldr,
+          isLoading: false,
+          hasError,
+        });
+      }
     }
 
     this.settingsState = null;
@@ -1406,8 +1660,14 @@ export class HackerNewsApp {
     }
 
     this.selectedPost = post;
+    const cachedTldr = this.tldrCache.get(post.id) || null;
+    const hasError = this.tldrErrorIds.has(post.id);
     renderStoryDetail(this.ctx, this.storyDetailState, post, {
       onOpenStoryUrl: () => this.openStoryUrl(),
+    }, {
+      tldr: cachedTldr,
+      isLoading: false,
+      hasError,
     });
   }
 
@@ -1419,5 +1679,7 @@ export class HackerNewsApp {
     if (this.chatPanelState) {
       stopTypingIndicator(this.chatPanelState);
     }
+    this.stopTldrLoadingAnimation();
+    this.stopAiIndicatorAnimation();
   }
 }
