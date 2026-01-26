@@ -561,6 +561,48 @@ describe("HackerNewsApp", () => {
       expect(chatPanelState.suggestions.selectedIndex).toBe(-1);
     });
 
+    it("should insert suggestion into input when Tab is pressed", async () => {
+      const post = createMockPostWithComments({}, 2);
+      app.setPostsForTesting([post]);
+      await app.setSelectedPostForTesting(post);
+
+      // Enter chat mode
+      (app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
+      (app as any).showChatView();
+      await renderOnce();
+
+      // Wait for the focus timeout from showChatView
+      await new Promise(resolve => setTimeout(resolve, 20));
+      await renderOnce();
+
+      // Set up state with a suggestion selected
+      const chatPanelState = (app as any).chatPanelState;
+      chatPanelState.suggestions.loading = false;
+      chatPanelState.suggestions.suggestions = ["What is the main argument?", "Who wrote this?"];
+      chatPanelState.suggestions.selectedIndex = 0;
+
+      const { renderSuggestions } = await import("../components/Suggestions");
+      renderSuggestions((app as any).ctx, chatPanelState.suggestions);
+      await renderOnce();
+
+      // Verify initial state
+      expect(chatPanelState.suggestions.suggestions.length).toBe(2);
+      expect(chatPanelState.suggestions.selectedIndex).toBe(0);
+      expect(chatPanelState.input.plainText).toBe("");
+      const initialMessageCount = chatPanelState.messages.length;
+
+      // Press Tab key
+      mockInput.pressKey("TAB");
+      await renderOnce();
+
+      // Suggestion should be inserted into input with trailing space, but NOT sent
+      expect(chatPanelState.input.plainText).toBe("What is the main argument? ");
+      expect(chatPanelState.suggestions.suggestions.length).toBe(0);
+      expect(chatPanelState.suggestions.selectedIndex).toBe(-1);
+      // Message count should NOT have increased (Tab doesn't send)
+      expect(chatPanelState.messages.length).toBe(initialMessageCount);
+    });
+
     it("should send message when Enter key is pressed with typed text", async () => {
       const post = createMockPostWithComments({}, 2);
       app.setPostsForTesting([post]);
