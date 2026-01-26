@@ -71,10 +71,13 @@ import {
   initSettingsState,
   navigateSettings,
   selectSettingsItem,
+  adjustSettingValue,
   goBackInSettings,
   getSelectedProviderUrl,
   type SettingsState,
+  type SettingsAction,
 } from "./components/SettingsPanel";
+import { updateSetting, resetSettings, loadSettings, type FilterSettings } from "./settings";
 
 // Import services
 import {
@@ -411,6 +414,26 @@ export class HackerNewsApp {
       if (url) {
         this.callbacks.onOpenUrl?.(url);
       }
+    } else if (key.name === "left" || key.name === "h") {
+      // Decrease setting value
+      const action = adjustSettingValue(
+        this.settingsState,
+        getConfiguredProvider() || "anthropic",
+        -1,
+      );
+      if (action) {
+        this.handleSettingsAction(action);
+      }
+    } else if (key.name === "right" || key.name === "l") {
+      // Increase setting value
+      const action = adjustSettingValue(
+        this.settingsState,
+        getConfiguredProvider() || "anthropic",
+        1,
+      );
+      if (action) {
+        this.handleSettingsAction(action);
+      }
     } else if (key.name === "return" || key.name === "enter") {
       const action = selectSettingsItem(
         this.settingsState,
@@ -422,7 +445,7 @@ export class HackerNewsApp {
     }
   }
 
-  private handleSettingsAction(action: any) {
+  private handleSettingsAction(action: NonNullable<SettingsAction>) {
     switch (action.type) {
       case "switch_provider":
         const switchConfig = loadConfig();
@@ -493,6 +516,16 @@ export class HackerNewsApp {
 
       case "toggle_telemetry":
         setTelemetryEnabled(!isTelemetryEnabled());
+        this.rerenderSettings();
+        break;
+
+      case "adjust_setting":
+        updateSetting(action.key, loadSettings()[action.key] + action.delta);
+        this.rerenderSettings();
+        break;
+
+      case "reset_filters":
+        resetSettings();
         this.rerenderSettings();
         break;
     }

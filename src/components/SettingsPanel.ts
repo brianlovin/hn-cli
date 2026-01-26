@@ -2,12 +2,23 @@ import { BoxRenderable, TextRenderable, type RenderContext, bold, t } from "@ope
 import { COLORS } from "../theme";
 import {
   type Provider,
+  type AnthropicModel,
+  type OpenAIModel,
   getApiKey,
   getModel,
   isTelemetryEnabled,
   ANTHROPIC_MODELS,
   OPENAI_MODELS,
 } from "../config";
+import {
+  loadSettings,
+  SETTING_RANGES,
+  SETTING_CATEGORIES,
+  DEFAULT_SETTINGS,
+  formatSettingValue,
+  hasModifiedSettings,
+  type FilterSettings,
+} from "../settings";
 
 const PROVIDER_API_KEY_URLS: Record<Provider, { display: string; full: string }> = {
   anthropic: {
@@ -22,9 +33,11 @@ const PROVIDER_API_KEY_URLS: Record<Provider, { display: string; full: string }>
 
 type SettingsItemType =
   | { type: "provider"; provider: Provider; hasKey: boolean }
-  | { type: "model"; modelId: string; modelName: string }
+  | { type: "model"; modelId: AnthropicModel | OpenAIModel; modelName: string }
   | { type: "telemetry"; enabled: boolean }
-  | { type: "action"; action: "done" | "clear_keys" };
+  | { type: "action"; action: "done" | "clear_keys" | "reset_filters" }
+  | { type: "category_header"; label: string }
+  | { type: "filter_setting"; key: keyof FilterSettings; value: number; isModified: boolean };
 
 interface SettingsListItem {
   item: SettingsItemType;
@@ -46,6 +59,7 @@ function getSettingsList(chatProvider: Provider): SettingsListItem[] {
   const hasOpenAI = !!getApiKey("openai");
   const hasAnyKey = hasAnthropic || hasOpenAI;
   const models = chatProvider === "anthropic" ? ANTHROPIC_MODELS : OPENAI_MODELS;
+  const settings = loadSettings();
 
   const items: SettingsListItem[] = [];
 
@@ -75,11 +89,37 @@ function getSettingsList(chatProvider: Provider): SettingsListItem[] {
     enabled: true,
   });
 
+  // Filter settings by category
+  for (const category of SETTING_CATEGORIES) {
+    // Add category header (not selectable)
+    items.push({
+      item: { type: "category_header", label: category.label },
+      enabled: false,
+    });
+
+    // Add each setting in this category
+    for (const key of category.settings) {
+      const value = settings[key];
+      const isModified = value !== DEFAULT_SETTINGS[key];
+      items.push({
+        item: { type: "filter_setting", key, value, isModified },
+        enabled: true,
+      });
+    }
+  }
+
   // Action buttons
   items.push({
     item: { type: "action", action: "done" },
     enabled: true,
   });
+
+  if (hasModifiedSettings()) {
+    items.push({
+      item: { type: "action", action: "reset_filters" },
+      enabled: true,
+    });
+  }
 
   if (hasAnyKey) {
     items.push({
@@ -254,6 +294,65 @@ export function renderSettings(
     container.add(itemBox);
   }
 
+  // Filter settings sections
+  let currentCategoryKey: string | null = null;
+  for (let i = 0; i < items.length; i++) {
+    const listItem = items[i];
+    if (!listItem) continue;
+
+    // Render category headers
+    if (listItem.item.type === "category_header") {
+      container.add(new BoxRenderable(ctx, { height: 1 }));
+      const categoryHeader = new TextRenderable(ctx, {
+        content: t`${bold(listItem.item.label)}`,
+        fg: COLORS.textSecondary,
+      });
+      container.add(categoryHeader);
+      currentCategoryKey = listItem.item.label;
+      continue;
+    }
+
+    // Render filter settings
+    if (listItem.item.type === "filter_setting") {
+      const isSelected = i === state.selectedIndex;
+      const range = SETTING_RANGES[listItem.item.key];
+      const formattedValue = formatSettingValue(listItem.item.key, listItem.item.value);
+
+      const itemBox = new BoxRenderable(ctx, {
+        flexDirection: "row",
+        gap: 1,
+      });
+
+      const indicator = new TextRenderable(ctx, {
+        content: isSelected ? "›" : " ",
+        fg: COLORS.accent,
+      });
+      itemBox.add(indicator);
+
+      const label = new TextRenderable(ctx, {
+        content: range.label,
+        fg: isSelected ? COLORS.accent : COLORS.textPrimary,
+      });
+      itemBox.add(label);
+
+      const valueText = new TextRenderable(ctx, {
+        content: `[${formattedValue}]`,
+        fg: listItem.item.isModified ? COLORS.accent : COLORS.textSecondary,
+      });
+      itemBox.add(valueText);
+
+      if (listItem.item.isModified) {
+        const modifiedIndicator = new TextRenderable(ctx, {
+          content: "*",
+          fg: COLORS.accent,
+        });
+        itemBox.add(modifiedIndicator);
+      }
+
+      container.add(itemBox);
+    }
+  }
+
   container.add(new BoxRenderable(ctx, { height: 1 }));
 
   // Actions section
@@ -266,6 +365,9 @@ export function renderSettings(
     switch (listItem.item.action) {
       case "done":
         label = "Done";
+        break;
+      case "reset_filters":
+        label = "Reset All to Defaults";
         break;
       case "clear_keys":
         label = "Clear All API Keys";
@@ -295,7 +397,7 @@ export function renderSettings(
   container.add(new BoxRenderable(ctx, { height: 2 }));
 
   const hint = new TextRenderable(ctx, {
-    content: "↑/↓ navigate  Enter select  Esc back",
+    content: "↑/↓ navigate  ←/→ adjust  Enter select  Esc back",
     fg: COLORS.textSecondary,
   });
   container.add(hint);
@@ -310,16 +412,36 @@ export function navigateSettings(
 ): void {
   const items = getSettingsList(chatProvider);
   const maxIndex = items.length - 1;
-  state.selectedIndex = Math.max(0, Math.min(maxIndex, state.selectedIndex + delta));
+
+  // Move in the requested direction, skipping disabled items (category headers)
+  let newIndex = state.selectedIndex;
+  let attempts = 0;
+  const maxAttempts = items.length;
+
+  do {
+    newIndex = Math.max(0, Math.min(maxIndex, newIndex + delta));
+    attempts++;
+    // Stop if we've hit the bounds or found an enabled item
+    if (newIndex === 0 || newIndex === maxIndex || items[newIndex]?.enabled) {
+      break;
+    }
+  } while (attempts < maxAttempts);
+
+  // Only update if the new item is enabled
+  if (items[newIndex]?.enabled) {
+    state.selectedIndex = newIndex;
+  }
 }
 
 export type SettingsAction =
   | { type: "switch_provider"; provider: Provider }
-  | { type: "select_model"; modelId: string; provider: Provider }
+  | { type: "select_model"; modelId: AnthropicModel | OpenAIModel; provider: Provider }
   | { type: "add_anthropic" }
   | { type: "add_openai" }
   | { type: "clear_keys" }
   | { type: "toggle_telemetry" }
+  | { type: "reset_filters" }
+  | { type: "adjust_setting"; key: keyof FilterSettings; delta: number }
   | { type: "done" }
   | null;
 
@@ -355,13 +477,47 @@ export function selectSettingsItem(
     case "telemetry":
       return { type: "toggle_telemetry" };
 
+    case "filter_setting":
+      // For filter settings, Enter increases the value
+      return {
+        type: "adjust_setting",
+        key: selected.item.key,
+        delta: SETTING_RANGES[selected.item.key].step,
+      };
+
     case "action":
       switch (selected.item.action) {
         case "done":
           return { type: "done" };
+        case "reset_filters":
+          return { type: "reset_filters" };
         case "clear_keys":
           return { type: "clear_keys" };
       }
+  }
+
+  return null;
+}
+
+/**
+ * Adjust a filter setting value (for left/right arrow keys).
+ */
+export function adjustSettingValue(
+  state: SettingsState,
+  chatProvider: Provider,
+  delta: number,
+): SettingsAction {
+  const items = getSettingsList(chatProvider);
+  const selected = items[state.selectedIndex];
+  if (!selected || !selected.enabled) return null;
+
+  if (selected.item.type === "filter_setting") {
+    const step = SETTING_RANGES[selected.item.key].step;
+    return {
+      type: "adjust_setting",
+      key: selected.item.key,
+      delta: delta > 0 ? step : -step,
+    };
   }
 
   return null;
