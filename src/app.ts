@@ -29,6 +29,7 @@ import {
   updateStorySelection,
   scrollToStory,
   updateStoryIndicator,
+  showStoryListNotification,
   type StoryListState,
 } from "./components/StoryList";
 import {
@@ -639,8 +640,11 @@ export class HackerNewsApp {
 
       // Handle requested story ID from command line flag
       let initialStoryIndex = 0;
+      let storyNotFound = false;
       if (this.requestedStoryId) {
-        initialStoryIndex = await this.handleRequestedStory();
+        const result = await this.handleRequestedStory();
+        initialStoryIndex = result.index;
+        storyNotFound = !result.found;
       }
 
       stopEmptyStateAnimation(this.emptyStateState);
@@ -657,6 +661,14 @@ export class HackerNewsApp {
         onSelect: (index) => this.selectStory(index),
       });
 
+      // Show notification if requested story was not found
+      if (storyNotFound) {
+        showStoryListNotification(
+          this.storyListState,
+          `Story ${this.requestedStoryId} not found`,
+        );
+      }
+
       // Auto-select story (requested story index or first story)
       if (this.posts.length > 0) {
         await this.selectStory(initialStoryIndex);
@@ -669,22 +681,24 @@ export class HackerNewsApp {
     }
   }
 
-  private async handleRequestedStory(): Promise<number> {
-    if (!this.requestedStoryId) return 0;
+  private async handleRequestedStory(): Promise<{ index: number; found: boolean }> {
+    if (!this.requestedStoryId) return { index: 0, found: true };
 
     // Check if the requested story is already in the posts list
     const existingIndex = this.posts.findIndex((p) => p.id === this.requestedStoryId);
 
     if (existingIndex !== -1) {
       // Story exists in list - keep it in place, return its index
-      return existingIndex;
+      return { index: existingIndex, found: true };
     } else {
       // Story not in list - fetch it and prepend to index 0
       const requestedPost = await getPostById(this.requestedStoryId);
       if (requestedPost) {
         this.posts.unshift(requestedPost);
+        return { index: 0, found: true };
       }
-      return 0;
+      // Story could not be fetched
+      return { index: 0, found: false };
     }
   }
 

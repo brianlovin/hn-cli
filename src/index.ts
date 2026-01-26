@@ -20,7 +20,7 @@ function parseArgs(): { storyId?: number } {
       const value = arg.split("=")[1];
       if (value) {
         const parsed = parseInt(value, 10);
-        if (!isNaN(parsed)) storyId = parsed;
+        if (!isNaN(parsed) && parsed > 0) storyId = parsed;
       }
     }
     // Handle --story 123 or -s 123
@@ -28,7 +28,7 @@ function parseArgs(): { storyId?: number } {
       const nextArg = args[i + 1];
       if (nextArg && !nextArg.startsWith("-")) {
         const parsed = parseInt(nextArg, 10);
-        if (!isNaN(parsed)) storyId = parsed;
+        if (!isNaN(parsed) && parsed > 0) storyId = parsed;
         i++; // Skip next arg
       }
     }
