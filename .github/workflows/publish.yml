@@ -15,12 +15,14 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          # Pin to 1.1.39 - Bun segfaults during test cleanup on Linux due to
+          # timer callback bugs. This version has been most stable in testing.
+          # See: https://github.com/oven-sh/bun/issues/22452
+          bun-version: "1.1.39"
 
       - run: bun install
       - run: bun run build
       - run: bun run test
-        continue-on-error: true  # Bun may crash on cleanup even if tests pass
       - run: bun run typecheck
 
       - uses: actions/setup-node@v4
