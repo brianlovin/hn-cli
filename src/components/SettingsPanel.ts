@@ -43,7 +43,7 @@ type SettingsItemType =
   | { type: "provider"; provider: Provider; hasKey: boolean }
   | { type: "model"; modelId: AnthropicModel | OpenAIModel; modelName: string }
   | { type: "telemetry"; enabled: boolean }
-  | { type: "action"; action: "done" | "clear_keys" | "reset_filters" }
+  | { type: "action"; action: "clear_keys" | "reset_filters" }
   | { type: "category_header"; label: string }
   | { type: "filter_setting"; key: keyof FilterSettings; value: number; isModified: boolean };
 
@@ -79,8 +79,8 @@ export function initSettingsState(ctx: RenderContext): SettingsState {
 
   // Add "Settings" title to header
   const title = new TextRenderable(ctx, {
-    content: "Settings",
-    fg: COLORS.accent,
+    content: t`${bold("Settings")}`,
+    fg: COLORS.textSecondary,
   });
   header.add(title);
 
@@ -150,12 +150,6 @@ function getSettingsList(chatProvider: Provider): SettingsListItem[] {
     }
   }
 
-  // Telemetry toggle
-  items.push({
-    item: { type: "telemetry", enabled: isTelemetryEnabled() },
-    enabled: true,
-  });
-
   // Filter settings by category
   for (const category of SETTING_CATEGORIES) {
     // Add category header (not selectable)
@@ -175,12 +169,13 @@ function getSettingsList(chatProvider: Provider): SettingsListItem[] {
     }
   }
 
-  // Action buttons
+  // Telemetry toggle (at bottom before actions)
   items.push({
-    item: { type: "action", action: "done" },
+    item: { type: "telemetry", enabled: isTelemetryEnabled() },
     enabled: true,
   });
 
+  // Action buttons
   if (hasModifiedSettings()) {
     items.push({
       item: { type: "action", action: "reset_filters" },
@@ -306,48 +301,6 @@ export function renderSettings(
     }
   }
 
-  // Telemetry section
-  state.content.add(new BoxRenderable(ctx, { height: 1 }));
-
-  const telemetryHeader = new TextRenderable(ctx, {
-    content: t`${bold("Telemetry")}`,
-    fg: COLORS.textSecondary,
-  });
-  state.content.add(telemetryHeader);
-
-  for (let i = 0; i < items.length; i++) {
-    const listItem = items[i];
-    if (!listItem || listItem.item.type !== "telemetry") continue;
-
-    const isSelected = i === state.selectedIndex;
-    const isEnabled = listItem.item.enabled;
-
-    const itemBox = new BoxRenderable(ctx, {
-      flexDirection: "row",
-      gap: 1,
-    });
-
-    const indicator = new TextRenderable(ctx, {
-      content: isSelected ? "›" : " ",
-      fg: COLORS.accent,
-    });
-    itemBox.add(indicator);
-
-    const toggle = new TextRenderable(ctx, {
-      content: isEnabled ? "●" : "○",
-      fg: isEnabled ? COLORS.accent : COLORS.textSecondary,
-    });
-    itemBox.add(toggle);
-
-    const label = new TextRenderable(ctx, {
-      content: isEnabled ? "Enabled" : "Disabled",
-      fg: isSelected ? COLORS.accent : COLORS.textPrimary,
-    });
-    itemBox.add(label);
-
-    state.content.add(itemBox);
-  }
-
   // Filter settings sections
   let currentCategoryKey: string | null = null;
   for (let i = 0; i < items.length; i++) {
@@ -407,6 +360,54 @@ export function renderSettings(
     }
   }
 
+  // Telemetry section (at bottom)
+  state.content.add(new BoxRenderable(ctx, { height: 1 }));
+
+  const telemetryHeader = new TextRenderable(ctx, {
+    content: t`${bold("Telemetry")}`,
+    fg: COLORS.textSecondary,
+  });
+  state.content.add(telemetryHeader);
+
+  for (let i = 0; i < items.length; i++) {
+    const listItem = items[i];
+    if (!listItem || listItem.item.type !== "telemetry") continue;
+
+    const isSelected = i === state.selectedIndex;
+    const isEnabled = listItem.item.enabled;
+
+    const itemBox = new BoxRenderable(ctx, {
+      flexDirection: "row",
+      gap: 1,
+    });
+
+    const indicator = new TextRenderable(ctx, {
+      content: isSelected ? "›" : " ",
+      fg: COLORS.accent,
+    });
+    itemBox.add(indicator);
+
+    const toggle = new TextRenderable(ctx, {
+      content: isEnabled ? "●" : "○",
+      fg: isEnabled ? COLORS.accent : COLORS.textSecondary,
+    });
+    itemBox.add(toggle);
+
+    const label = new TextRenderable(ctx, {
+      content: isEnabled ? "Enabled" : "Disabled",
+      fg: isSelected ? COLORS.accent : COLORS.textPrimary,
+    });
+    itemBox.add(label);
+
+    const sublabel = new TextRenderable(ctx, {
+      content: "(private and anonymous)",
+      fg: COLORS.textTertiary,
+    });
+    itemBox.add(sublabel);
+
+    state.content.add(itemBox);
+  }
+
   state.content.add(new BoxRenderable(ctx, { height: 1 }));
 
   // Actions section
@@ -417,9 +418,6 @@ export function renderSettings(
     const isSelected = i === state.selectedIndex;
     let label = "";
     switch (listItem.item.action) {
-      case "done":
-        label = "Done";
-        break;
       case "reset_filters":
         label = "Reset All to Defaults";
         break;
@@ -489,7 +487,6 @@ export type SettingsAction =
   | { type: "toggle_telemetry" }
   | { type: "reset_filters" }
   | { type: "adjust_setting"; key: keyof FilterSettings; delta: number }
-  | { type: "done" }
   | null;
 
 export function selectSettingsItem(
@@ -534,8 +531,6 @@ export function selectSettingsItem(
 
     case "action":
       switch (selected.item.action) {
-        case "done":
-          return { type: "done" };
         case "reset_filters":
           return { type: "reset_filters" };
         case "clear_keys":

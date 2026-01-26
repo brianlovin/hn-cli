@@ -458,10 +458,6 @@ export class HackerNewsApp {
         this.rerenderSettings();
         break;
 
-      case "done":
-        this.hideSettings();
-        break;
-
       case "add_anthropic":
         this.authSetupFromSettings = true;
         this.settingsMode = false;
