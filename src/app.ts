@@ -1612,7 +1612,7 @@ export class HackerNewsApp {
   private showSettings() {
     this.settingsMode = true;
     this.settingsFromChatMode = this.chatMode; // Remember where we came from
-    this.settingsState = initSettingsState();
+    this.settingsState = initSettingsState(this.ctx);
 
     // Cancel any pending loading interval
     this.cancelSuggestionLoadingInterval();
@@ -1632,29 +1632,26 @@ export class HackerNewsApp {
       });
     }
 
-    // Remove chat components
+    // Remove existing components from detail panel
     for (const child of this.storyDetailState.panel.getChildren()) {
       this.storyDetailState.panel.remove(child.id);
     }
 
-    this.rerenderSettings();
+    // Add settings components (header, scroll, shortcuts bar)
+    this.storyDetailState.panel.add(this.settingsState.header);
+    this.storyDetailState.panel.add(this.settingsState.scroll);
+    this.storyDetailState.panel.add(this.settingsState.shortcutsBar);
+
+    // Render settings content
+    renderSettings(this.ctx, this.settingsState, getConfiguredProvider() || "anthropic");
     this.saveToCache();
   }
 
   private rerenderSettings() {
     if (!this.settingsState) return;
 
-    // Clear existing
-    for (const child of this.storyDetailState.panel.getChildren()) {
-      this.storyDetailState.panel.remove(child.id);
-    }
-
-    const settingsUI = renderSettings(
-      this.ctx,
-      this.settingsState,
-      getConfiguredProvider() || "anthropic",
-    );
-    this.storyDetailState.panel.add(settingsUI);
+    // Just re-render the content (header, scroll, shortcuts already added)
+    renderSettings(this.ctx, this.settingsState, getConfiguredProvider() || "anthropic");
   }
 
   private hideSettings() {

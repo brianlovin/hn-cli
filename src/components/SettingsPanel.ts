@@ -1,4 +1,11 @@
-import { BoxRenderable, TextRenderable, type RenderContext, bold, t } from "@opentui/core";
+import {
+  BoxRenderable,
+  TextRenderable,
+  ScrollBoxRenderable,
+  type RenderContext,
+  bold,
+  t,
+} from "@opentui/core";
 import { COLORS } from "../theme";
 import {
   type Provider,
@@ -19,6 +26,7 @@ import {
   hasModifiedSettings,
   type FilterSettings,
 } from "../settings";
+import { createShortcutsBar, SETTINGS_SHORTCUTS } from "./ShortcutsBar";
 
 const PROVIDER_API_KEY_URLS: Record<Provider, { display: string; full: string }> = {
   anthropic: {
@@ -46,11 +54,70 @@ interface SettingsListItem {
 
 export interface SettingsState {
   selectedIndex: number;
+  header: BoxRenderable;
+  scroll: ScrollBoxRenderable;
+  content: BoxRenderable;
+  shortcutsBar: BoxRenderable;
 }
 
-export function initSettingsState(): SettingsState {
+export function initSettingsState(ctx: RenderContext): SettingsState {
+  // Fixed header at top
+  const header = new BoxRenderable(ctx, {
+    id: "settings-header",
+    width: "100%",
+    flexDirection: "column",
+    flexShrink: 0,
+    paddingLeft: 2,
+    paddingRight: 2,
+    paddingTop: 1,
+    paddingBottom: 1,
+    borderStyle: "single",
+    border: ["bottom"],
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.bg,
+  });
+
+  // Add "Settings" title to header
+  const title = new TextRenderable(ctx, {
+    content: "Settings",
+    fg: COLORS.accent,
+  });
+  header.add(title);
+
+  // Scrollable area for settings content
+  const scroll = new ScrollBoxRenderable(ctx, {
+    width: "100%",
+    flexGrow: 1,
+    scrollY: true,
+    backgroundColor: COLORS.bg,
+    contentOptions: {
+      flexDirection: "column",
+      paddingLeft: 2,
+      paddingRight: 2,
+      paddingTop: 1,
+      paddingBottom: 1,
+      backgroundColor: COLORS.bg,
+    },
+  });
+
+  // Content container inside scroll
+  const content = new BoxRenderable(ctx, {
+    width: "100%",
+    flexDirection: "column",
+    backgroundColor: COLORS.bg,
+  });
+
+  scroll.add(content);
+
+  // Fixed shortcuts bar at bottom
+  const shortcutsBar = createShortcutsBar(ctx, SETTINGS_SHORTCUTS);
+
   return {
     selectedIndex: 0,
+    header,
+    scroll,
+    content,
+    shortcutsBar,
   };
 }
 
@@ -135,34 +202,21 @@ export function renderSettings(
   ctx: RenderContext,
   state: SettingsState,
   chatProvider: Provider,
-): BoxRenderable {
-  const container = new BoxRenderable(ctx, {
-    width: "100%",
-    height: "100%",
-    flexDirection: "column",
-    paddingLeft: 2,
-    paddingRight: 2,
-    paddingTop: 2,
-    backgroundColor: COLORS.bg,
-  });
+): void {
+  // Clear existing content
+  for (const child of state.content.getChildren()) {
+    state.content.remove(child.id);
+  }
 
   const items = getSettingsList(chatProvider);
   const currentModel = getModel(chatProvider);
-
-  // Header
-  const header = new TextRenderable(ctx, {
-    content: "Settings",
-    fg: COLORS.accent,
-  });
-  container.add(header);
-  container.add(new BoxRenderable(ctx, { height: 1 }));
 
   // Provider section
   const providerHeader = new TextRenderable(ctx, {
     content: t`${bold("Provider")}`,
     fg: COLORS.textSecondary,
   });
-  container.add(providerHeader);
+  state.content.add(providerHeader);
 
   for (let i = 0; i < items.length; i++) {
     const listItem = items[i];
@@ -204,19 +258,19 @@ export function renderSettings(
       itemBox.add(hint);
     }
 
-    container.add(itemBox);
+    state.content.add(itemBox);
   }
 
   // Model section - only shown when there are model items
   const hasModelItems = items.some(item => item.item.type === "model");
   if (hasModelItems) {
-    container.add(new BoxRenderable(ctx, { height: 1 }));
+    state.content.add(new BoxRenderable(ctx, { height: 1 }));
 
     const modelHeader = new TextRenderable(ctx, {
       content: t`${bold("Model")}`,
       fg: COLORS.textSecondary,
     });
-    container.add(modelHeader);
+    state.content.add(modelHeader);
 
     for (let i = 0; i < items.length; i++) {
       const listItem = items[i];
@@ -248,18 +302,18 @@ export function renderSettings(
       });
       itemBox.add(label);
 
-      container.add(itemBox);
+      state.content.add(itemBox);
     }
   }
 
   // Telemetry section
-  container.add(new BoxRenderable(ctx, { height: 1 }));
+  state.content.add(new BoxRenderable(ctx, { height: 1 }));
 
   const telemetryHeader = new TextRenderable(ctx, {
     content: t`${bold("Telemetry")}`,
     fg: COLORS.textSecondary,
   });
-  container.add(telemetryHeader);
+  state.content.add(telemetryHeader);
 
   for (let i = 0; i < items.length; i++) {
     const listItem = items[i];
@@ -291,7 +345,7 @@ export function renderSettings(
     });
     itemBox.add(label);
 
-    container.add(itemBox);
+    state.content.add(itemBox);
   }
 
   // Filter settings sections
@@ -302,12 +356,12 @@ export function renderSettings(
 
     // Render category headers
     if (listItem.item.type === "category_header") {
-      container.add(new BoxRenderable(ctx, { height: 1 }));
+      state.content.add(new BoxRenderable(ctx, { height: 1 }));
       const categoryHeader = new TextRenderable(ctx, {
         content: t`${bold(listItem.item.label)}`,
         fg: COLORS.textSecondary,
       });
-      container.add(categoryHeader);
+      state.content.add(categoryHeader);
       currentCategoryKey = listItem.item.label;
       continue;
     }
@@ -349,11 +403,11 @@ export function renderSettings(
         itemBox.add(modifiedIndicator);
       }
 
-      container.add(itemBox);
+      state.content.add(itemBox);
     }
   }
 
-  container.add(new BoxRenderable(ctx, { height: 1 }));
+  state.content.add(new BoxRenderable(ctx, { height: 1 }));
 
   // Actions section
   for (let i = 0; i < items.length; i++) {
@@ -391,18 +445,11 @@ export function renderSettings(
     });
     itemBox.add(text);
 
-    container.add(itemBox);
+    state.content.add(itemBox);
   }
 
-  container.add(new BoxRenderable(ctx, { height: 2 }));
-
-  const hint = new TextRenderable(ctx, {
-    content: "↑/↓ navigate  ←/→ adjust  Enter select  Esc back",
-    fg: COLORS.textSecondary,
-  });
-  container.add(hint);
-
-  return container;
+  // Reset scroll position
+  state.scroll.scrollTop = 0;
 }
 
 export function navigateSettings(
