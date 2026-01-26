@@ -74,12 +74,11 @@ export function createStoryDetail(
   });
 
   scroll.add(content);
-  panel.add(header);
-  panel.add(scroll);
+  // Note: header, scroll, and shortcuts are NOT added to panel initially
+  // They are added dynamically when a story is selected (see showDetailComponents)
 
   // Keyboard shortcuts bar at bottom
   const shortcutsBar = createShortcutsBar(ctx, MAIN_SHORTCUTS);
-  panel.add(shortcutsBar);
 
   return {
     panel,
@@ -89,6 +88,36 @@ export function createStoryDetail(
     shortcutsBar,
     rootCommentBoxes: [],
   };
+}
+
+export function showShortcutsBar(state: StoryDetailState): void {
+  // Only add if not already present
+  const children = state.panel.getChildren();
+  const hasShortcutsBar = children.some(child => child.id === state.shortcutsBar.id);
+  if (!hasShortcutsBar) {
+    state.panel.add(state.shortcutsBar);
+  }
+}
+
+export function hideShortcutsBar(state: StoryDetailState): void {
+  state.panel.remove(state.shortcutsBar.id);
+}
+
+export function showDetailComponents(state: StoryDetailState): void {
+  // Add header, scroll, and shortcuts in order
+  const children = state.panel.getChildren();
+  const hasHeader = children.some(child => child.id === state.header.id);
+  if (!hasHeader) {
+    state.panel.add(state.header);
+    state.panel.add(state.scroll);
+    state.panel.add(state.shortcutsBar);
+  }
+}
+
+export function hideDetailComponents(state: StoryDetailState): void {
+  state.panel.remove(state.header.id);
+  state.panel.remove(state.scroll.id);
+  state.panel.remove(state.shortcutsBar.id);
 }
 
 export function renderStoryDetail(

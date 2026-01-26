@@ -12,6 +12,8 @@ async function main() {
   const renderer = await createCliRenderer({
     exitOnCtrlC: true,
     backgroundColor: COLORS.bg,
+    // Enable mouse movement tracking for text selection
+    enableMouseMovement: true,
     // Enable kitty keyboard protocol for proper option/alt key detection
     useKittyKeyboard: {
       disambiguate: true,
@@ -29,6 +31,8 @@ async function main() {
     },
   });
 
+  await app.initialize();
+
   // Check for updates in the background (non-blocking)
   checkForUpdates().then((updateInfo) => {
     if (updateInfo?.hasUpdate) {
@@ -36,7 +40,6 @@ async function main() {
     }
   });
 
-  await app.initialize();
   renderer.start();
 }
 
