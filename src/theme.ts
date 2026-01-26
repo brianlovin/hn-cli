@@ -10,6 +10,7 @@ export interface Theme {
   textVeryDim: string;
   accent: string;
   link: string;
+  success: string;
   commentL1: string;
   commentL2: string;
   commentL3: string;
@@ -25,6 +26,7 @@ const DARK_THEME: Theme = {
   textVeryDim: "#444444",
   accent: "#ff6600",
   link: "#6699ff",
+  success: "#4ade80",
   commentL1: "#555555",
   commentL2: "#444444",
   commentL3: "#333333",
@@ -40,6 +42,7 @@ const LIGHT_THEME: Theme = {
   textVeryDim: "#aaaaaa",
   accent: "#ff6600",
   link: "#0066cc",
+  success: "#22c55e",
   commentL1: "#cccccc",
   commentL2: "#dddddd",
   commentL3: "#eeeeee",

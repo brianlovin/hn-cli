@@ -39,6 +39,7 @@ export function createStoryList(ctx: RenderContext): StoryListState {
     contentOptions: {
       flexDirection: "column",
       backgroundColor: COLORS.bg,
+      gap: 1, // Add spacing between story items
     },
   });
 
@@ -98,7 +99,8 @@ export function scrollToStory(
   index: number,
 ): void {
   const itemHeight = 2; // Each story item is ~2 lines
-  const itemTop = index * itemHeight;
+  const gap = 1; // Gap between items
+  const itemTop = index * (itemHeight + gap);
   const itemBottom = itemTop + itemHeight;
   const viewportHeight = state.scroll.height;
   const currentScroll = state.scroll.scrollTop;

@@ -272,8 +272,11 @@ describe("HackerNewsApp", () => {
       expect(frame).toContain("domain2.com");
     });
 
-    it("should render keyboard shortcuts bar", async () => {
-      app.setPostsForTesting(createMockPosts(1));
+    it("should render keyboard shortcuts bar when story selected", async () => {
+      const posts = createMockPosts(1);
+      app.setPostsForTesting(posts);
+      // Select a story to show the shortcuts bar
+      await app.setSelectedPostForTesting(posts[0]!);
       await renderOnce();
 
       const frame = captureCharFrame();

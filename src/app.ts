@@ -19,6 +19,7 @@ import {
   createHeader,
   startLoadingAnimation,
   stopLoadingAnimation,
+  showUpdateNotification,
   type HeaderState,
 } from "./components/Header";
 import {
@@ -31,10 +32,17 @@ import {
 import {
   createStoryDetail,
   renderStoryDetail,
-  renderEmptyDetail,
   scrollToRootComment,
+  showDetailComponents,
+  hideDetailComponents,
   type StoryDetailState,
 } from "./components/StoryDetail";
+import {
+  createEmptyState,
+  startEmptyStateAnimation,
+  stopEmptyStateAnimation,
+  type EmptyStateState,
+} from "./components/EmptyState";
 import {
   createChatPanel,
   renderChatMessages,
@@ -103,6 +111,7 @@ export class HackerNewsApp {
   private headerState!: HeaderState;
   private storyListState!: StoryListState;
   private storyDetailState!: StoryDetailState;
+  private emptyStateState!: EmptyStateState;
   private chatPanelState: ChatPanelState | null = null;
   private authSetupState: AuthSetupState | null = null;
   private settingsState: SettingsState | null = null;
@@ -143,9 +152,7 @@ export class HackerNewsApp {
 
   setUpdateInfo(info: UpdateInfo) {
     this.updateInfo = info;
-    if (this.selectedIndex === -1 && !this.chatMode && !this.authSetupMode && !this.settingsMode) {
-      renderEmptyDetail(this.ctx, this.storyDetailState, this.updateInfo);
-    }
+    showUpdateNotification(this.headerState, this.updateInfo);
   }
 
   private setupLayout() {
@@ -181,8 +188,12 @@ export class HackerNewsApp {
       onOpenStoryUrl: () => this.openStoryUrl(),
     });
 
-    this.contentArea.add(this.storyListState.panel);
-    this.contentArea.add(this.storyDetailState.panel);
+    // Create empty state (shown initially while loading - takes full width)
+    this.emptyStateState = createEmptyState(this.ctx);
+    this.contentArea.add(this.emptyStateState.container);
+
+    // Note: storyList and storyDetail panels are NOT added initially
+    // They are added after posts load (see loadPosts)
 
     mainContainer.add(header);
     mainContainer.add(this.contentArea);
@@ -194,6 +205,12 @@ export class HackerNewsApp {
     this.renderer.keyInput.on("keypress", (key) => {
       if (key.name === "q" || (key.ctrl && key.name === "c")) {
         this.callbacks.onExit?.();
+        return;
+      }
+
+      // Cmd+C to copy selected text to clipboard
+      if (key.super && key.name === "c") {
+        this.copySelectionToClipboard();
         return;
       }
 
@@ -445,16 +462,34 @@ export class HackerNewsApp {
   }
 
   private async loadPosts() {
+    // Start loading animation (both header indicator and empty state animation)
     startLoadingAnimation(this.headerState, () => this.renderer.isDestroyed);
+    startEmptyStateAnimation(this.emptyStateState, "loading", () => this.renderer.isDestroyed);
+
     try {
       this.posts = await getRankedPosts();
       stopLoadingAnimation(this.headerState);
+      stopEmptyStateAnimation(this.emptyStateState);
+
+      // Remove loading state and add the main layout
+      this.contentArea.remove(this.emptyStateState.container.id);
+      this.contentArea.add(this.storyListState.panel);
+      this.contentArea.add(this.storyDetailState.panel);
+
+      // Show the detail components (header, scroll, shortcuts) now that layout is ready
+      showDetailComponents(this.storyDetailState);
+
       renderStoryList(this.ctx, this.storyListState, this.posts, this.selectedIndex, {
         onSelect: (index) => this.selectStory(index),
       });
-      renderEmptyDetail(this.ctx, this.storyDetailState, this.updateInfo);
+
+      // Auto-select first story if we have posts
+      if (this.posts.length > 0) {
+        await this.selectStory(0);
+      }
     } catch (error) {
       stopLoadingAnimation(this.headerState);
+      stopEmptyStateAnimation(this.emptyStateState);
       log("[ERROR]", "Error loading posts:", error);
     }
   }
@@ -974,6 +1009,41 @@ export class HackerNewsApp {
     await this.loadPosts();
   }
 
+  private async copySelectionToClipboard() {
+    const selection = this.renderer.getSelection();
+    if (!selection) return;
+
+    const selectedText = selection.getSelectedText();
+    if (!selectedText) return;
+
+    // Determine clipboard command based on platform
+    const platform = process.platform;
+    let clipboardCmd: string[];
+
+    if (platform === "darwin") {
+      clipboardCmd = ["pbcopy"];
+    } else if (platform === "linux") {
+      // xclip is more commonly available; fall back to xsel
+      clipboardCmd = ["xclip", "-selection", "clipboard"];
+    } else if (platform === "win32") {
+      clipboardCmd = ["clip"];
+    } else {
+      // Unsupported platform - silently fail
+      return;
+    }
+
+    try {
+      const proc = Bun.spawn(clipboardCmd, {
+        stdin: "pipe",
+      });
+      proc.stdin.write(selectedText);
+      proc.stdin.end();
+      await proc.exited;
+    } catch {
+      // Clipboard command not available or failed - silently fail
+    }
+  }
+
   // Public getters for testing
   get currentSelectedIndex(): number {
     return this.selectedIndex;
@@ -995,7 +1065,26 @@ export class HackerNewsApp {
     return this.storyDetailState.rootCommentBoxes.length;
   }
 
+  private ensureLayoutReadyForTesting() {
+    // Ensure main panels are added (they start hidden during loading state)
+    const children = this.contentArea.getChildren();
+    const hasStoryList = children.some(child => child.id === this.storyListState.panel.id);
+    if (!hasStoryList) {
+      this.contentArea.remove(this.emptyStateState.container.id);
+      this.contentArea.add(this.storyListState.panel);
+      this.contentArea.add(this.storyDetailState.panel);
+    }
+
+    // Ensure detail components (header, scroll, shortcuts) are shown
+    const detailChildren = this.storyDetailState.panel.getChildren();
+    const hasHeader = detailChildren.some(child => child.id === this.storyDetailState.header.id);
+    if (!hasHeader) {
+      showDetailComponents(this.storyDetailState);
+    }
+  }
+
   setPostsForTesting(posts: HackerNewsPost[]) {
+    this.ensureLayoutReadyForTesting();
     this.posts = posts;
     renderStoryList(this.ctx, this.storyListState, this.posts, this.selectedIndex, {
       onSelect: (index) => this.selectStory(index),
@@ -1003,6 +1092,12 @@ export class HackerNewsApp {
   }
 
   async setSelectedPostForTesting(post: HackerNewsPost) {
+    this.ensureLayoutReadyForTesting();
+
+    if (this.selectedIndex === -1) {
+      this.selectedIndex = 0;
+    }
+
     this.selectedPost = post;
     renderStoryDetail(this.ctx, this.storyDetailState, post, {
       onOpenStoryUrl: () => this.openStoryUrl(),
