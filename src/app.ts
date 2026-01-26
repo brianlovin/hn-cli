@@ -156,6 +156,11 @@ export class HackerNewsApp {
   private suggestionsLoading = false;
   private suggestionsContainer: BoxRenderable | null = null;
 
+  // Follow-up questions state
+  private followUpCount = 0;
+  private static readonly MAX_FOLLOW_UP_ROUNDS = 3;
+  private isGeneratingFollowUps = false;
+
   constructor(renderer: CliRenderer, callbacks: AppCallbacks = {}) {
     this.renderer = renderer;
     this.ctx = renderer;
@@ -423,7 +428,12 @@ export class HackerNewsApp {
       flexShrink: 0, // Don't shrink - preserve natural height for suggestions
       paddingLeft: 2,
       paddingRight: 2,
+      paddingTop: 1,
+      paddingBottom: 1,
       backgroundColor: COLORS.bg,
+      borderStyle: "single",
+      border: ["top"],
+      borderColor: COLORS.border,
     });
 
     // Create input area
@@ -441,7 +451,7 @@ export class HackerNewsApp {
     });
 
     const promptLabel = new TextRenderable(this.ctx, {
-      content: "› ",
+      content: "›  ",
       fg: COLORS.accent,
     });
     inputContainer.add(promptLabel);
@@ -594,6 +604,7 @@ export class HackerNewsApp {
     this.selectedSuggestionIndex = -1;
     this.suggestionsGenerated = false;
     this.suggestionsLoading = true;
+    this.followUpCount = 0;
 
     // Hide story list panel and expand detail panel to full width
     this.contentArea.remove(this.storyListPanel.id);
@@ -705,9 +716,27 @@ export class HackerNewsApp {
     }
 
     // Scroll to bottom
-    if (this.chatScroll) {
-      this.chatScroll.scrollTop = this.chatScroll.scrollHeight;
-    }
+    this.scrollChatToBottom();
+  }
+
+  private scrollChatToBottom() {
+    if (!this.chatScroll) return;
+
+    // Immediate scroll
+    this.chatScroll.scrollTop = this.chatScroll.scrollHeight;
+
+    // Follow-up scrolls to handle layout recalculation
+    setTimeout(() => {
+      if (this.chatScroll) {
+        this.chatScroll.scrollTop = this.chatScroll.scrollHeight;
+      }
+    }, 50);
+
+    setTimeout(() => {
+      if (this.chatScroll) {
+        this.chatScroll.scrollTop = this.chatScroll.scrollHeight;
+      }
+    }, 150);
   }
 
   private async sendChatMessage() {
@@ -716,8 +745,12 @@ export class HackerNewsApp {
     const userMessage = this.chatInput.plainText.trim();
     if (!userMessage) return;
 
-    // Clear input
+    // Clear input and suggestions
     this.chatInput.clear();
+    this.suggestions = [];
+    this.originalSuggestions = [];
+    this.selectedSuggestionIndex = -1;
+    this.renderSuggestions();
 
     // Add user message to chat
     this.addChatMessage("user", userMessage);
@@ -862,6 +895,9 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
     });
 
     await stream.finalMessage();
+
+    // Generate follow-up questions after response completes
+    this.generateFollowUpQuestions();
   }
 
   private async streamOpenAIResponse(
@@ -914,6 +950,9 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
       "[openai-stream] Stream complete, response length:",
       fullResponse.length,
     );
+
+    // Generate follow-up questions after response completes
+    this.generateFollowUpQuestions();
   }
 
   private createShortcutsBar(): BoxRenderable {
@@ -2166,6 +2205,21 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
       this.suggestionsContainer.remove(child.id);
     }
 
+    // Determine if we have content to show
+    const hasContent = this.suggestionsLoading || this.suggestions.length > 0;
+
+    // Hide container styling when empty (no border, no padding)
+    const container = this.suggestionsContainer as any;
+    if (hasContent) {
+      container.paddingTop = 1;
+      container.paddingBottom = 1;
+      container.border = ["top"];
+    } else {
+      container.paddingTop = 0;
+      container.paddingBottom = 0;
+      container.border = [];
+    }
+
     // Show loading state
     if (this.suggestionsLoading) {
       const loadingText = new TextRenderable(this.ctx, {
@@ -2350,6 +2404,137 @@ ${commentsPreview}`;
       } catch {
         log("[ERROR]", "[suggestions] Full error (non-JSON):", error);
       }
+    }
+  }
+
+  private async generateFollowUpQuestions() {
+    // Skip if we've reached max rounds
+    if (this.followUpCount >= HackerNewsApp.MAX_FOLLOW_UP_ROUNDS) {
+      log("[follow-up] Max rounds reached, skipping");
+      return;
+    }
+
+    // Skip if already generating
+    if (this.isGeneratingFollowUps) {
+      log("[follow-up] Already generating, skipping");
+      return;
+    }
+
+    // Skip if no assistant message exists yet
+    const hasAssistantMessage = this.chatMessages.some(
+      (m) => m.role === "assistant",
+    );
+    if (!hasAssistantMessage) {
+      log("[follow-up] No assistant message yet, skipping");
+      return;
+    }
+
+    // Skip if no selected post
+    if (!this.selectedPost) {
+      log("[follow-up] No selected post, skipping");
+      return;
+    }
+
+    this.isGeneratingFollowUps = true;
+    this.suggestionsLoading = true;
+    this.renderSuggestions();
+
+    // Start loading animation
+    const loadingInterval = setInterval(() => {
+      if (!this.renderer.isDestroyed && this.suggestionsLoading) {
+        this.loadingFrame =
+          (this.loadingFrame + 1) % HackerNewsApp.LOADING_CHARS.length;
+        this.renderSuggestions();
+      }
+    }, 80);
+
+    try {
+      const questions = await this.fetchFollowUpQuestions();
+
+      // Stop loading
+      clearInterval(loadingInterval);
+      this.suggestionsLoading = false;
+
+      if (questions.length > 0) {
+        this.suggestions = questions;
+        this.originalSuggestions = [...questions];
+        this.selectedSuggestionIndex = questions.length - 1;
+        this.followUpCount++;
+        log("[follow-up] Generated questions, count:", this.followUpCount);
+      }
+
+      this.renderSuggestions();
+
+      // Scroll chat to bottom after suggestions render (height may have changed)
+      // Use multiple delays to ensure layout has fully recalculated
+      this.scrollChatToBottom();
+    } catch (error) {
+      clearInterval(loadingInterval);
+      this.suggestionsLoading = false;
+      this.renderSuggestions();
+      log("[ERROR]", "[follow-up] Error:", error);
+    } finally {
+      this.isGeneratingFollowUps = false;
+    }
+  }
+
+  private async fetchFollowUpQuestions(): Promise<string[]> {
+    if (!this.selectedPost) return [];
+
+    // Get last 2-4 messages for context (excluding the initial assistant greeting)
+    const recentMessages = this.chatMessages
+      .slice(-4)
+      .filter((m) => m.content.length < 500) // Skip very long messages
+      .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+      .join("\n");
+
+    const prompt = `Based on this conversation about a Hacker News story, suggest 3 natural follow-up questions the user might want to ask next. The questions should:
+- Build on what was just discussed
+- Explore related angles or deeper aspects
+- Be concise (max 12 words each)
+
+Story: "${this.selectedPost.title}"
+Recent conversation:
+${recentMessages}
+
+Return ONLY the 3 questions, one per line, no numbering or bullets.`;
+
+    if (this.chatProvider === "anthropic") {
+      if (!this.anthropic) {
+        const apiKey = getApiKey("anthropic");
+        this.anthropic = new Anthropic({ apiKey });
+      }
+
+      const response = await this.anthropic.messages.create({
+        model: getModel("anthropic") as string,
+        max_tokens: 256,
+        messages: [{ role: "user", content: prompt }],
+      });
+
+      const firstBlock = response.content[0];
+      const text =
+        firstBlock && firstBlock.type === "text" ? firstBlock.text : "";
+      return text
+        .split("\n")
+        .filter((q: string) => q.trim())
+        .slice(0, 3);
+    } else {
+      if (!this.openai) {
+        const apiKey = getApiKey("openai");
+        this.openai = new OpenAI({ apiKey });
+      }
+
+      const response = await this.openai.chat.completions.create({
+        model: getModel("openai") as string,
+        max_completion_tokens: 256,
+        messages: [{ role: "user", content: prompt }],
+      });
+
+      const text = response.choices[0]?.message?.content || "";
+      return text
+        .split("\n")
+        .filter((q: string) => q.trim())
+        .slice(0, 3);
     }
   }
 
