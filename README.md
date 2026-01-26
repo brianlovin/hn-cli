@@ -8,6 +8,17 @@ A terminal UI for browsing Hacker News, modeled after the HN reader on my [perso
 # Install Bun if you haven't already
 curl -fsSL https://bun.sh/install | bash
 
+# Run directly with bunx
+bunx @brianlovin/hn-cli
+
+# Or install globally
+bun install -g @brianlovin/hn-cli
+hn-cli
+```
+
+### From source
+
+```bash
 # Clone the repository
 git clone https://github.com/brianlovin/hn-cli.git
 cd hn-cli

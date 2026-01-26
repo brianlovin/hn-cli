@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 import { createCliRenderer } from "@opentui/core";
 import { exec } from "child_process";
 import { HackerNewsApp } from "./app";

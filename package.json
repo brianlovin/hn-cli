@@ -1,14 +1,41 @@
 {
-  "name": "hn-cli",
+  "name": "@brianlovin/hn-cli",
+  "version": "0.1.0",
+  "description": "Interactive terminal UI for browsing Hacker News",
   "module": "src/index.ts",
   "type": "module",
-  "private": true,
+  "bin": {
+    "hn-cli": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "start": "bun run src/index.ts",
     "dev": "bun run --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun --minify --entry-naming cli.js",
+    "prepublishOnly": "bun run build && bun run typecheck",
     "test": "bun test",
     "typecheck": "bun tsc --noEmit",
     "debug": "bun run src/debug.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/brianlovin/hn-cli.git"
+  },
+  "homepage": "https://github.com/brianlovin/hn-cli",
+  "bugs": "https://github.com/brianlovin/hn-cli/issues",
+  "author": "Brian Lovin",
+  "license": "MIT",
+  "keywords": [
+    "hacker-news",
+    "cli",
+    "terminal",
+    "tui",
+    "hn"
+  ],
+  "engines": {
+    "bun": ">=1.0.0"
   },
   "devDependencies": {
     "@types/bun": "latest"
