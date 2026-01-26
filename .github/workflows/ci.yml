@@ -14,7 +14,9 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          # Pin to specific version to avoid Bun segfault bugs on Linux
+          # See: https://github.com/oven-sh/bun/issues/22452
+          bun-version: "1.3.3"
 
       - run: bun install
 
