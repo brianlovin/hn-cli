@@ -23,7 +23,6 @@ import {
   SETTING_CATEGORIES,
   DEFAULT_SETTINGS,
   formatSettingValue,
-  hasModifiedSettings,
   type FilterSettings,
 } from "../settings";
 import { createShortcutsBar, SETTINGS_SHORTCUTS } from "./ShortcutsBar";
@@ -43,7 +42,7 @@ type SettingsItemType =
   | { type: "provider"; provider: Provider; hasKey: boolean }
   | { type: "model"; modelId: AnthropicModel | OpenAIModel; modelName: string }
   | { type: "telemetry"; enabled: boolean }
-  | { type: "action"; action: "clear_keys" | "reset_filters" }
+  | { type: "action"; action: "clear_keys" }
   | { type: "category_header"; label: string }
   | { type: "filter_setting"; key: keyof FilterSettings; value: number; isModified: boolean }
   | { type: "setting_subtitle"; text: string };
@@ -186,13 +185,6 @@ function getSettingsList(chatProvider: Provider): SettingsListItem[] {
   });
 
   // Action buttons
-  if (hasModifiedSettings()) {
-    items.push({
-      item: { type: "action", action: "reset_filters" },
-      enabled: true,
-    });
-  }
-
   if (hasAnyKey) {
     items.push({
       item: { type: "action", action: "clear_keys" },
@@ -216,9 +208,9 @@ export function renderSettings(
   const items = getSettingsList(chatProvider);
   const currentModel = getModel(chatProvider);
 
-  // Provider section
+  // AI Features section
   const providerHeader = new TextRenderable(ctx, {
-    content: t`${bold("Provider")}`,
+    content: t`${bold("AI Features")}`,
     fg: COLORS.textSecondary,
   });
   state.content.add(providerHeader);
@@ -256,8 +248,9 @@ export function renderSettings(
     itemBox.add(label);
 
     if (!hasKey) {
+      const urlDisplay = PROVIDER_API_KEY_URLS[listItem.item.provider].display;
       const hint = new TextRenderable(ctx, {
-        content: `${PROVIDER_API_KEY_URLS[listItem.item.provider].display} (tab)`,
+        content: isSelected ? `${urlDisplay} (tab)` : urlDisplay,
         fg: COLORS.textTertiary,
       });
       itemBox.add(hint);
@@ -311,8 +304,10 @@ export function renderSettings(
     }
   }
 
+  // Spacer after AI Features section for consistent gap
+  state.content.add(new BoxRenderable(ctx, { height: 1 }));
+
   // Filter settings sections
-  let currentCategoryKey: string | null = null;
   for (let i = 0; i < items.length; i++) {
     const listItem = items[i];
     if (!listItem) continue;
@@ -325,7 +320,6 @@ export function renderSettings(
         fg: COLORS.textSecondary,
       });
       state.content.add(categoryHeader);
-      currentCategoryKey = listItem.item.label;
       continue;
     }
 
@@ -358,12 +352,13 @@ export function renderSettings(
       });
       itemBox.add(valueText);
 
-      if (listItem.item.isModified) {
-        const modifiedIndicator = new TextRenderable(ctx, {
-          content: "*",
-          fg: COLORS.accent,
+      // Show arrow hint for currently selected setting
+      if (isSelected) {
+        const arrowHint = new TextRenderable(ctx, {
+          content: "← →",
+          fg: COLORS.textTertiary,
         });
-        itemBox.add(modifiedIndicator);
+        itemBox.add(arrowHint);
       }
 
       state.content.add(itemBox);
@@ -451,9 +446,6 @@ export function renderSettings(
     const isSelected = i === state.selectedIndex;
     let label = "";
     switch (listItem.item.action) {
-      case "reset_filters":
-        label = "Reset All to Defaults";
-        break;
       case "clear_keys":
         label = "Clear All API Keys";
         break;
@@ -478,9 +470,6 @@ export function renderSettings(
 
     state.content.add(itemBox);
   }
-
-  // Reset scroll position
-  state.scroll.scrollTop = 0;
 }
 
 export function navigateSettings(
@@ -518,7 +507,6 @@ export type SettingsAction =
   | { type: "add_openai" }
   | { type: "clear_keys" }
   | { type: "toggle_telemetry" }
-  | { type: "reset_filters" }
   | { type: "adjust_setting"; key: keyof FilterSettings; delta: number }
   | null;
 
@@ -564,8 +552,6 @@ export function selectSettingsItem(
 
     case "action":
       switch (selected.item.action) {
-        case "reset_filters":
-          return { type: "reset_filters" };
         case "clear_keys":
           return { type: "clear_keys" };
       }

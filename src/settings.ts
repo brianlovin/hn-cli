@@ -73,7 +73,7 @@ export const SETTING_RANGES: Record<keyof FilterSettings, SettingRange> = {
     max: 50,
     step: 1,
     label: "Max Stories",
-    description: "How many stories to fetch when the app starts",
+    description: "Maximum number of stories to display",
   },
   fetchLimit: {
     min: 50,

@@ -163,6 +163,7 @@ export class HackerNewsApp {
   private authSetupFromSettings = false; // Track if auth setup was triggered from settings
   private settingsFromChatMode = false; // Track if settings was opened from chat mode
   private settingsIntent: "settings" | "chat" | "tldr" = "settings"; // Track why settings was opened
+  private initialFilterSettings: FilterSettings | null = null; // Snapshot of settings when panel opened
 
   // Update notification state
   private updateInfo: UpdateInfo | null = null;
@@ -442,6 +443,10 @@ export class HackerNewsApp {
       if (action) {
         this.handleSettingsAction(action);
       }
+    } else if (key.name === "r") {
+      // Reset all filter settings to defaults
+      resetSettings();
+      this.rerenderSettings();
     }
   }
 
@@ -517,11 +522,6 @@ export class HackerNewsApp {
 
       case "adjust_setting":
         updateSetting(action.key, loadSettings()[action.key] + action.delta);
-        this.rerenderSettings();
-        break;
-
-      case "reset_filters":
-        resetSettings();
         this.rerenderSettings();
         break;
     }
@@ -1609,6 +1609,7 @@ export class HackerNewsApp {
     this.settingsMode = true;
     this.settingsFromChatMode = this.chatMode; // Remember where we came from
     this.settingsState = initSettingsState(this.ctx);
+    this.initialFilterSettings = { ...loadSettings() }; // Snapshot to detect changes
 
     // Cancel any pending loading interval
     this.cancelSuggestionLoadingInterval();
@@ -1702,8 +1703,47 @@ export class HackerNewsApp {
       }
     }
 
+    // Check if filter settings changed and refresh if needed
+    const needsRefresh = this.checkIfSettingsRequireRefresh();
+
     this.settingsState = null;
+    this.initialFilterSettings = null;
     this.saveToCache();
+
+    // Refresh stories if settings affecting the list changed
+    if (needsRefresh) {
+      this.refresh();
+    }
+  }
+
+  /**
+   * Check if any settings that affect the story list have changed.
+   * Returns true if a refresh is needed.
+   */
+  private checkIfSettingsRequireRefresh(): boolean {
+    if (!this.initialFilterSettings) return false;
+
+    const current = loadSettings();
+    const initial = this.initialFilterSettings;
+
+    // Settings that affect which stories are shown or their order
+    const storyListSettings: (keyof FilterSettings)[] = [
+      "maxPosts",
+      "fetchLimit",
+      "hoursWindow",
+      "minPoints",
+      "minComments",
+      "commentWeight",
+      "recencyBonusMax",
+    ];
+
+    for (const key of storyListSettings) {
+      if (current[key] !== initial[key]) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   private async refresh() {

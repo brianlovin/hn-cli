@@ -1,5 +1,6 @@
 import { describe, it, expect } from "bun:test";
 import { getSelectedProviderUrl, type SettingsState } from "../components/SettingsPanel";
+import { getApiKey } from "../config";
 
 // Create a minimal mock state for testing functions that only need selectedIndex
 function createMockSettingsState(selectedIndex: number): SettingsState {
@@ -11,7 +12,6 @@ function createMockSettingsState(selectedIndex: number): SettingsState {
     shortcutsBar: null as any,
   };
 }
-import { getApiKey } from "../config";
 
 // NOTE: Settings Mode rendering tests are skipped due to a pre-existing Yoga layout engine crash
 // in the OpenTUI test framework. The settings action logic is tested by directly calling
@@ -86,24 +86,6 @@ describe("Settings Mode Actions", () => {
 
     expect(mockApp.authSetupMode).toBe(true);
     expect(mockApp.authSetupState?.selectedProvider).toBe("anthropic");
-  });
-
-  it("should handle done action to close settings", () => {
-    let hideSettingsCalled = false;
-    const mockApp = {
-      settingsMode: true,
-      hideSettings: () => { hideSettingsCalled = true; },
-    };
-
-    const handleAction = (action: { type: string }) => {
-      if (action.type === "done") {
-        mockApp.hideSettings();
-      }
-    };
-
-    handleAction({ type: "done" });
-
-    expect(hideSettingsCalled).toBe(true);
   });
 
   it("should track settingsFromChatMode flag when opening settings from chat", () => {
