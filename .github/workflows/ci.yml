@@ -20,5 +20,17 @@ jobs:
 
       - run: bun run typecheck
 
-      - run: bun run test
-        continue-on-error: true  # Bun may crash on cleanup even if tests pass
+      - name: Run tests
+        run: |
+          bun run test 2>&1 | tee test-output.txt || true
+          # Fail if there are actual test failures
+          if grep -q " [1-9][0-9]* fail" test-output.txt; then
+            echo "Tests failed"
+            exit 1
+          fi
+          # Fail if tests didn't run at all
+          if ! grep -q " pass" test-output.txt; then
+            echo "Tests did not run"
+            exit 1
+          fi
+          echo "Tests passed"
