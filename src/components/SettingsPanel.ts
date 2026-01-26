@@ -225,6 +225,7 @@ export function renderSettings(
     const providerName = listItem.item.provider === "anthropic" ? "Anthropic" : "OpenAI";
 
     const itemBox = new BoxRenderable(ctx, {
+      id: `settings-item-${i}`,
       flexDirection: "row",
       gap: 1,
     });
@@ -278,6 +279,7 @@ export function renderSettings(
       const isActive = listItem.item.modelId === currentModel;
 
       const itemBox = new BoxRenderable(ctx, {
+        id: `settings-item-${i}`,
         flexDirection: "row",
         gap: 1,
       });
@@ -330,6 +332,7 @@ export function renderSettings(
       const formattedValue = formatSettingValue(listItem.item.key, listItem.item.value);
 
       const itemBox = new BoxRenderable(ctx, {
+        id: `settings-item-${i}`,
         flexDirection: "row",
         gap: 1,
       });
@@ -405,6 +408,7 @@ export function renderSettings(
     const isEnabled = listItem.item.enabled;
 
     const itemBox = new BoxRenderable(ctx, {
+      id: `settings-item-${i}`,
       flexDirection: "row",
       gap: 1,
     });
@@ -452,6 +456,7 @@ export function renderSettings(
     }
 
     const itemBox = new BoxRenderable(ctx, {
+      id: `settings-item-${i}`,
       flexDirection: "row",
       gap: 1,
     });
@@ -497,6 +502,48 @@ export function navigateSettings(
   // Only update if the new item is enabled
   if (items[newIndex]?.enabled) {
     state.selectedIndex = newIndex;
+    scrollToSelectedItem(state);
+  }
+}
+
+/**
+ * Scroll the settings panel to ensure the selected item is visible.
+ */
+export function scrollToSelectedItem(state: SettingsState): void {
+  const itemId = `settings-item-${state.selectedIndex}`;
+  const scrollContent = state.scroll.getChildren()[0];
+  if (!scrollContent) return;
+
+  // Find the selected item by ID
+  const findItem = (container: BoxRenderable): BoxRenderable | null => {
+    for (const child of container.getChildren()) {
+      if (child.id === itemId) {
+        return child as BoxRenderable;
+      }
+      if (child instanceof BoxRenderable) {
+        const found = findItem(child);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  const targetItem = findItem(scrollContent as BoxRenderable);
+  if (!targetItem) return;
+
+  // Get the item's position relative to the scroll content
+  const itemY = targetItem.y - scrollContent.y;
+  const itemHeight = targetItem.height || 1;
+  const viewportHeight = state.scroll.height;
+  const currentScroll = state.scroll.scrollTop;
+
+  // Only scroll if the item is outside the visible viewport
+  if (itemY < currentScroll) {
+    // Item is above viewport - scroll up to show it at top with some padding
+    state.scroll.scrollTop = Math.max(0, itemY - 1);
+  } else if (itemY + itemHeight > currentScroll + viewportHeight) {
+    // Item is below viewport - scroll down to show it at bottom
+    state.scroll.scrollTop = itemY + itemHeight - viewportHeight + 1;
   }
 }
 
