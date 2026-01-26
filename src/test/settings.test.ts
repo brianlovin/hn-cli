@@ -1,6 +1,17 @@
 import { describe, it, expect } from "bun:test";
-import { getSelectedProviderUrl, initSettingsState, type SettingsState } from "../components/SettingsPanel";
+import { getSelectedProviderUrl, type SettingsState } from "../components/SettingsPanel";
 import { getApiKey } from "../config";
+
+// Create a minimal mock state for testing functions that only need selectedIndex
+function createMockSettingsState(selectedIndex: number): SettingsState {
+  return {
+    selectedIndex,
+    header: null as any,
+    scroll: null as any,
+    content: null as any,
+    shortcutsBar: null as any,
+  };
+}
 
 // NOTE: Settings Mode rendering tests are skipped due to a pre-existing Yoga layout engine crash
 // in the OpenTUI test framework. The settings action logic is tested by directly calling
@@ -75,24 +86,6 @@ describe("Settings Mode Actions", () => {
 
     expect(mockApp.authSetupMode).toBe(true);
     expect(mockApp.authSetupState?.selectedProvider).toBe("anthropic");
-  });
-
-  it("should handle done action to close settings", () => {
-    let hideSettingsCalled = false;
-    const mockApp = {
-      settingsMode: true,
-      hideSettings: () => { hideSettingsCalled = true; },
-    };
-
-    const handleAction = (action: { type: string }) => {
-      if (action.type === "done") {
-        mockApp.hideSettings();
-      }
-    };
-
-    handleAction({ type: "done" });
-
-    expect(hideSettingsCalled).toBe(true);
   });
 
   it("should track settingsFromChatMode flag when opening settings from chat", () => {
@@ -297,8 +290,7 @@ describe("Provider API Key URLs", () => {
     // Only test if Anthropic doesn't have a key configured
     if (getApiKey("anthropic")) return;
 
-    const state = initSettingsState();
-    state.selectedIndex = 0; // Anthropic is first in the list
+    const state = createMockSettingsState(0); // Anthropic is first in the list
 
     const url = getSelectedProviderUrl(state, "anthropic");
     expect(url).toBe("https://platform.claude.com/settings/keys");
@@ -308,25 +300,22 @@ describe("Provider API Key URLs", () => {
     // Only test if OpenAI doesn't have a key configured
     if (getApiKey("openai")) return;
 
-    const state = initSettingsState();
-    state.selectedIndex = 1; // OpenAI is second in the list
+    const state = createMockSettingsState(1); // OpenAI is second in the list
 
     const url = getSelectedProviderUrl(state, "anthropic");
     expect(url).toBe("https://platform.openai.com/api-keys");
   });
 
   it("should return null when selection is not a provider (action item)", () => {
-    const state = initSettingsState();
     // Done action is at index 2 when no keys are configured
-    state.selectedIndex = 2;
+    const state = createMockSettingsState(2);
 
     const url = getSelectedProviderUrl(state, "anthropic");
     expect(url).toBeNull();
   });
 
   it("should return null when selected index is out of bounds", () => {
-    const state = initSettingsState();
-    state.selectedIndex = 999;
+    const state = createMockSettingsState(999);
 
     const url = getSelectedProviderUrl(state, "anthropic");
     expect(url).toBeNull();
@@ -336,8 +325,7 @@ describe("Provider API Key URLs", () => {
     // This test verifies the behavior when a provider already has a key
     // We can't easily mock this, but we can verify the function exists
     // and handles the case based on real config state
-    const state = initSettingsState();
-    state.selectedIndex = 0;
+    const state = createMockSettingsState(0);
 
     const url = getSelectedProviderUrl(state, "anthropic");
 

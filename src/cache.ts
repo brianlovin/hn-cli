@@ -3,6 +3,7 @@ import { join } from "path";
 import { tmpdir, homedir } from "os";
 import type { HackerNewsPost } from "./types";
 import type { TLDRResult } from "./services/TLDRService";
+import { loadSettings } from "./settings";
 
 // Cache lives in temp directory so it persists across hot reloads
 const CACHE_DIR = join(tmpdir(), "hn-cli-cache");
@@ -28,8 +29,13 @@ export function resetPersistentCachePaths(): void {
   CHAT_CACHE_FILE = join(PERSISTENT_CACHE_DIR, "chat-cache.json");
 }
 
-// Stories cache expires after 5 minutes
-const STORIES_TTL_MS = 5 * 60 * 1000;
+/**
+ * Get the stories TTL in milliseconds from settings.
+ */
+function getStoriesTtlMs(): number {
+  const settings = loadSettings();
+  return settings.storiesTtlMinutes * 60 * 1000;
+}
 
 // TLDR and chat cache expires after 7 days
 export const AI_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -103,7 +109,7 @@ export function loadCache(): AppCache | null {
 
     // Check if stories are still fresh
     const storiesAge = Date.now() - cache.storiesFetchedAt;
-    if (storiesAge > STORIES_TTL_MS) {
+    if (storiesAge > getStoriesTtlMs()) {
       // Stories are stale, but we can still use chat sessions
       return {
         ...cache,

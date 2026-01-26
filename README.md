@@ -40,6 +40,7 @@ bun run start
 | `⌘j` / `⌘k` | Navigate between root-level comments |
 | `o`         | Open story URL in browser            |
 | `c`         | Chat with AI about the story         |
+| `s`         | Open settings                        |
 | `r`         | Refresh stories                      |
 | `q`         | Quit                                 |
 
@@ -69,15 +70,6 @@ export OPENAI_API_KEY=sk-...
 **Option 2: In-app setup**
 
 Press `c` to start a chat, and you'll be guided through the setup. Your key is stored locally at `~/.config/hn-cli/config.json`.
-
-**Settings**
-
-While in chat mode, press `,` to access settings where you can:
-
-- Switch between Anthropic and OpenAI
-- Change the model
-- Add additional API keys
-- Clear stored keys
 
 ---
 
@@ -127,23 +119,46 @@ bun run debug highlighted-comment  # Test comment highlighting
 - `src/app.ts` - Main app class with UI and keyboard handling
 - `src/api.ts` - API client for fetching from HNPWA API
 - `src/config.ts` - Configuration and API key management
+- `src/settings.ts` - Configurable filter settings with validation
 - `src/types.ts` - TypeScript types for HN data structures
 - `src/test/` - Test suite
 
+## Settings
+
+Press `s` at any time to open the settings panel. Use `j`/`k` to navigate, `←`/`→` or `Enter` to adjust values, and `r` to reset all settings to defaults.
+
+### AI Provider
+
+- Switch between Anthropic and OpenAI
+- Change the model (Claude Sonnet/Haiku, GPT-4o/4o-mini)
+- Add or clear API keys
+
+### Story Filtering
+
+These settings control which stories appear in your feed:
+
+| Setting          | Default | Description                                       |
+| ---------------- | ------- | ------------------------------------------------- |
+| Max Stories      | 24      | Maximum number of stories to display              |
+| Time Window      | 24h     | Only show stories from the last N hours           |
+| Min Points       | 50      | Minimum upvotes required (OR min comments)        |
+| Min Comments     | 20      | Minimum comments required (OR min points)         |
+
+### Comment Display
+
+| Setting          | Default | Description                                       |
+| ---------------- | ------- | ------------------------------------------------- |
+| Root Comments    | 12      | Maximum root-level comments shown per story       |
+| Child Comments   | 8       | Maximum replies shown per comment                 |
+| Nesting Depth    | 3       | Maximum levels of nested replies                  |
+
+Settings are stored locally at `~/.config/hn-cli/config.json`.
+
 ## Design decisions
 
-This CLI matches the implementation of my HN reader on my [personal website](https://brianlovin.com/hn):
+The default settings match my HN reader on my [personal website](https://brianlovin.com/hn). I made these choices so that it's easier for me to keep up with the most interesting stories throughout the day without getting sucked too deep into long comment threads or the flood of new submissions.
 
-- Only shows posts from the last 24 hours
-- Only shows "link" type posts (excludes jobs, polls)
-- Requires minimum story engagement: 50+ points OR 20+ comments
-- Ranked by: points + (comments × 0.75) + recency bonus
-- Maximum 24 posts displayed
-- Comments: max 12 root comments, max 8 children per parent, max 3 levels deep
-
-I made these choices so that it's easier for me to keep up with the most interesting stories throughout the day without getting sucked too deep into long comment threads or the flood of new submissions.
-
-If you want your version of this tool to work differently, feel free to clone or consider opening a PR with more advanced settings to let people customize the default experience.
+All defaults are now customizable via the settings panel (`s`).
 
 ## Telemetry
 

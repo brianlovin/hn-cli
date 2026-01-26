@@ -103,5 +103,13 @@ export const CHAT_SHORTCUTS: ShortcutItem[] = [
   { key: "esc", desc: "close" },
 ];
 
+export const SETTINGS_SHORTCUTS: ShortcutItem[] = [
+  { key: "j/k", desc: "navigate" },
+  { key: "←/→", desc: "adjust" },
+  { key: "↵", desc: "select" },
+  { key: "r", desc: "reset" },
+  { key: "esc", desc: "close", rightAlign: true },
+];
+
 // Legacy export for backward compatibility
 export const MAIN_SHORTCUTS = DETAIL_SHORTCUTS;

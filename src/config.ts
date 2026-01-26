@@ -1,6 +1,7 @@
 import { homedir } from "os";
 import { join } from "path";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import type { FilterSettings } from "./settings";
 
 export type Provider = "anthropic" | "openai";
 
@@ -35,6 +36,7 @@ export interface Config {
   openaiModel?: OpenAIModel;
   telemetryEnabled?: boolean;
   userId?: string;
+  filterSettings?: FilterSettings;
 }
 
 const CONFIG_DIR = join(homedir(), ".config", "hn-cli");
@@ -169,11 +171,12 @@ export function clearApiKey(provider: Provider): void {
 }
 
 export function clearAllApiKeys(): void {
-  // Clear API-related settings but preserve telemetry preferences
+  // Clear API-related settings but preserve telemetry and filter settings
   const config = loadConfig();
   saveConfig({
     telemetryEnabled: config.telemetryEnabled,
     userId: config.userId,
+    filterSettings: config.filterSettings,
   });
 }
 

@@ -1,13 +1,31 @@
-import { BoxRenderable, TextRenderable, type RenderContext, bold, t } from "@opentui/core";
+import {
+  BoxRenderable,
+  TextRenderable,
+  ScrollBoxRenderable,
+  type RenderContext,
+  bold,
+  t,
+} from "@opentui/core";
 import { COLORS } from "../theme";
 import {
   type Provider,
+  type AnthropicModel,
+  type OpenAIModel,
   getApiKey,
   getModel,
   isTelemetryEnabled,
   ANTHROPIC_MODELS,
   OPENAI_MODELS,
 } from "../config";
+import {
+  loadSettings,
+  SETTING_RANGES,
+  SETTING_CATEGORIES,
+  DEFAULT_SETTINGS,
+  formatSettingValue,
+  type FilterSettings,
+} from "../settings";
+import { createShortcutsBar, SETTINGS_SHORTCUTS } from "./ShortcutsBar";
 
 const PROVIDER_API_KEY_URLS: Record<Provider, { display: string; full: string }> = {
   anthropic: {
@@ -22,9 +40,12 @@ const PROVIDER_API_KEY_URLS: Record<Provider, { display: string; full: string }>
 
 type SettingsItemType =
   | { type: "provider"; provider: Provider; hasKey: boolean }
-  | { type: "model"; modelId: string; modelName: string }
+  | { type: "model"; modelId: AnthropicModel | OpenAIModel; modelName: string }
   | { type: "telemetry"; enabled: boolean }
-  | { type: "action"; action: "done" | "clear_keys" };
+  | { type: "action"; action: "clear_keys" }
+  | { type: "category_header"; label: string }
+  | { type: "filter_setting"; key: keyof FilterSettings; value: number; isModified: boolean }
+  | { type: "setting_subtitle"; text: string };
 
 interface SettingsListItem {
   item: SettingsItemType;
@@ -33,11 +54,70 @@ interface SettingsListItem {
 
 export interface SettingsState {
   selectedIndex: number;
+  header: BoxRenderable;
+  scroll: ScrollBoxRenderable;
+  content: BoxRenderable;
+  shortcutsBar: BoxRenderable;
 }
 
-export function initSettingsState(): SettingsState {
+export function initSettingsState(ctx: RenderContext): SettingsState {
+  // Fixed header at top
+  const header = new BoxRenderable(ctx, {
+    id: "settings-header",
+    width: "100%",
+    flexDirection: "column",
+    flexShrink: 0,
+    paddingLeft: 2,
+    paddingRight: 2,
+    paddingTop: 1,
+    paddingBottom: 1,
+    borderStyle: "single",
+    border: ["bottom"],
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.bg,
+  });
+
+  // Add "Settings" title to header
+  const title = new TextRenderable(ctx, {
+    content: t`${bold("Settings")}`,
+    fg: COLORS.textSecondary,
+  });
+  header.add(title);
+
+  // Scrollable area for settings content
+  const scroll = new ScrollBoxRenderable(ctx, {
+    width: "100%",
+    flexGrow: 1,
+    scrollY: true,
+    backgroundColor: COLORS.bg,
+    contentOptions: {
+      flexDirection: "column",
+      paddingLeft: 2,
+      paddingRight: 2,
+      paddingTop: 1,
+      paddingBottom: 1,
+      backgroundColor: COLORS.bg,
+    },
+  });
+
+  // Content container inside scroll
+  const content = new BoxRenderable(ctx, {
+    width: "100%",
+    flexDirection: "column",
+    backgroundColor: COLORS.bg,
+  });
+
+  scroll.add(content);
+
+  // Fixed shortcuts bar at bottom
+  const shortcutsBar = createShortcutsBar(ctx, SETTINGS_SHORTCUTS);
+
   return {
     selectedIndex: 0,
+    header,
+    scroll,
+    content,
+    shortcutsBar,
   };
 }
 
@@ -46,6 +126,7 @@ function getSettingsList(chatProvider: Provider): SettingsListItem[] {
   const hasOpenAI = !!getApiKey("openai");
   const hasAnyKey = hasAnthropic || hasOpenAI;
   const models = chatProvider === "anthropic" ? ANTHROPIC_MODELS : OPENAI_MODELS;
+  const settings = loadSettings();
 
   const items: SettingsListItem[] = [];
 
@@ -69,18 +150,41 @@ function getSettingsList(chatProvider: Provider): SettingsListItem[] {
     }
   }
 
-  // Telemetry toggle
+  // Filter settings by category
+  for (const category of SETTING_CATEGORIES) {
+    // Add category header (not selectable)
+    items.push({
+      item: { type: "category_header", label: category.label },
+      enabled: false,
+    });
+
+    // Add each setting in this category with subtitle
+    for (const key of category.settings) {
+      const value = settings[key];
+      const isModified = value !== DEFAULT_SETTINGS[key];
+      const range = SETTING_RANGES[key];
+
+      // Setting row (selectable)
+      items.push({
+        item: { type: "filter_setting", key, value, isModified },
+        enabled: true,
+      });
+
+      // Subtitle row (not selectable)
+      items.push({
+        item: { type: "setting_subtitle", text: range.description },
+        enabled: false,
+      });
+    }
+  }
+
+  // Telemetry toggle (at bottom before actions)
   items.push({
     item: { type: "telemetry", enabled: isTelemetryEnabled() },
     enabled: true,
   });
 
   // Action buttons
-  items.push({
-    item: { type: "action", action: "done" },
-    enabled: true,
-  });
-
   if (hasAnyKey) {
     items.push({
       item: { type: "action", action: "clear_keys" },
@@ -95,34 +199,21 @@ export function renderSettings(
   ctx: RenderContext,
   state: SettingsState,
   chatProvider: Provider,
-): BoxRenderable {
-  const container = new BoxRenderable(ctx, {
-    width: "100%",
-    height: "100%",
-    flexDirection: "column",
-    paddingLeft: 2,
-    paddingRight: 2,
-    paddingTop: 2,
-    backgroundColor: COLORS.bg,
-  });
+): void {
+  // Clear existing content
+  for (const child of state.content.getChildren()) {
+    state.content.remove(child.id);
+  }
 
   const items = getSettingsList(chatProvider);
   const currentModel = getModel(chatProvider);
 
-  // Header
-  const header = new TextRenderable(ctx, {
-    content: "Settings",
-    fg: COLORS.accent,
-  });
-  container.add(header);
-  container.add(new BoxRenderable(ctx, { height: 1 }));
-
-  // Provider section
+  // AI Features section
   const providerHeader = new TextRenderable(ctx, {
-    content: t`${bold("Provider")}`,
+    content: t`${bold("AI Features")}`,
     fg: COLORS.textSecondary,
   });
-  container.add(providerHeader);
+  state.content.add(providerHeader);
 
   for (let i = 0; i < items.length; i++) {
     const listItem = items[i];
@@ -157,26 +248,27 @@ export function renderSettings(
     itemBox.add(label);
 
     if (!hasKey) {
+      const urlDisplay = PROVIDER_API_KEY_URLS[listItem.item.provider].display;
       const hint = new TextRenderable(ctx, {
-        content: `${PROVIDER_API_KEY_URLS[listItem.item.provider].display} (tab)`,
+        content: isSelected ? `${urlDisplay} (tab)` : urlDisplay,
         fg: COLORS.textTertiary,
       });
       itemBox.add(hint);
     }
 
-    container.add(itemBox);
+    state.content.add(itemBox);
   }
 
   // Model section - only shown when there are model items
   const hasModelItems = items.some(item => item.item.type === "model");
   if (hasModelItems) {
-    container.add(new BoxRenderable(ctx, { height: 1 }));
+    state.content.add(new BoxRenderable(ctx, { height: 1 }));
 
     const modelHeader = new TextRenderable(ctx, {
       content: t`${bold("Model")}`,
       fg: COLORS.textSecondary,
     });
-    container.add(modelHeader);
+    state.content.add(modelHeader);
 
     for (let i = 0; i < items.length; i++) {
       const listItem = items[i];
@@ -208,18 +300,102 @@ export function renderSettings(
       });
       itemBox.add(label);
 
-      container.add(itemBox);
+      state.content.add(itemBox);
     }
   }
 
-  // Telemetry section
-  container.add(new BoxRenderable(ctx, { height: 1 }));
+  // Spacer after AI Features section for consistent gap
+  state.content.add(new BoxRenderable(ctx, { height: 1 }));
+
+  // Filter settings sections
+  for (let i = 0; i < items.length; i++) {
+    const listItem = items[i];
+    if (!listItem) continue;
+
+    // Render category headers
+    if (listItem.item.type === "category_header") {
+      state.content.add(new BoxRenderable(ctx, { height: 1 }));
+      const categoryHeader = new TextRenderable(ctx, {
+        content: t`${bold(listItem.item.label)}`,
+        fg: COLORS.textSecondary,
+      });
+      state.content.add(categoryHeader);
+      continue;
+    }
+
+    // Render filter settings
+    if (listItem.item.type === "filter_setting") {
+      const isSelected = i === state.selectedIndex;
+      const range = SETTING_RANGES[listItem.item.key];
+      const formattedValue = formatSettingValue(listItem.item.key, listItem.item.value);
+
+      const itemBox = new BoxRenderable(ctx, {
+        flexDirection: "row",
+        gap: 1,
+      });
+
+      const indicator = new TextRenderable(ctx, {
+        content: isSelected ? "›" : " ",
+        fg: COLORS.accent,
+      });
+      itemBox.add(indicator);
+
+      const label = new TextRenderable(ctx, {
+        content: range.label,
+        fg: isSelected ? COLORS.accent : COLORS.textPrimary,
+      });
+      itemBox.add(label);
+
+      const valueText = new TextRenderable(ctx, {
+        content: `[${formattedValue}]`,
+        fg: listItem.item.isModified ? COLORS.accent : COLORS.textSecondary,
+      });
+      itemBox.add(valueText);
+
+      // Show arrow hint for currently selected setting
+      if (isSelected) {
+        const arrowHint = new TextRenderable(ctx, {
+          content: "← →",
+          fg: COLORS.textTertiary,
+        });
+        itemBox.add(arrowHint);
+      }
+
+      state.content.add(itemBox);
+    }
+
+    // Render setting subtitles
+    if (listItem.item.type === "setting_subtitle") {
+      const subtitleBox = new BoxRenderable(ctx, {
+        flexDirection: "row",
+        marginBottom: 1,
+      });
+
+      // Indent to align with setting labels (space for indicator + gap)
+      const indent = new TextRenderable(ctx, {
+        content: "  ",
+        fg: COLORS.textSecondary,
+      });
+      subtitleBox.add(indent);
+
+      const subtitleText = new TextRenderable(ctx, {
+        content: listItem.item.text,
+        fg: COLORS.textSecondary,
+      });
+      subtitleBox.add(subtitleText);
+
+      state.content.add(subtitleBox);
+    }
+  }
+
+  // Telemetry section (at bottom)
+  state.content.add(new BoxRenderable(ctx, { height: 1 }));
 
   const telemetryHeader = new TextRenderable(ctx, {
     content: t`${bold("Telemetry")}`,
     fg: COLORS.textSecondary,
   });
-  container.add(telemetryHeader);
+  state.content.add(telemetryHeader);
 
   for (let i = 0; i < items.length; i++) {
     const listItem = items[i];
@@ -251,10 +427,16 @@ export function renderSettings(
     });
     itemBox.add(label);
 
-    container.add(itemBox);
+    const sublabel = new TextRenderable(ctx, {
+      content: "(private and anonymous)",
+      fg: COLORS.textTertiary,
+    });
+    itemBox.add(sublabel);
+
+    state.content.add(itemBox);
   }
 
-  container.add(new BoxRenderable(ctx, { height: 1 }));
+  state.content.add(new BoxRenderable(ctx, { height: 1 }));
 
   // Actions section
   for (let i = 0; i < items.length; i++) {
@@ -264,9 +446,6 @@ export function renderSettings(
     const isSelected = i === state.selectedIndex;
     let label = "";
     switch (listItem.item.action) {
-      case "done":
-        label = "Done";
-        break;
       case "clear_keys":
         label = "Clear All API Keys";
         break;
@@ -289,18 +468,8 @@ export function renderSettings(
     });
     itemBox.add(text);
 
-    container.add(itemBox);
+    state.content.add(itemBox);
   }
-
-  container.add(new BoxRenderable(ctx, { height: 2 }));
-
-  const hint = new TextRenderable(ctx, {
-    content: "↑/↓ navigate  Enter select  Esc back",
-    fg: COLORS.textSecondary,
-  });
-  container.add(hint);
-
-  return container;
 }
 
 export function navigateSettings(
@@ -310,17 +479,35 @@ export function navigateSettings(
 ): void {
   const items = getSettingsList(chatProvider);
   const maxIndex = items.length - 1;
-  state.selectedIndex = Math.max(0, Math.min(maxIndex, state.selectedIndex + delta));
+
+  // Move in the requested direction, skipping disabled items (category headers)
+  let newIndex = state.selectedIndex;
+  let attempts = 0;
+  const maxAttempts = items.length;
+
+  do {
+    newIndex = Math.max(0, Math.min(maxIndex, newIndex + delta));
+    attempts++;
+    // Stop if we've hit the bounds or found an enabled item
+    if (newIndex === 0 || newIndex === maxIndex || items[newIndex]?.enabled) {
+      break;
+    }
+  } while (attempts < maxAttempts);
+
+  // Only update if the new item is enabled
+  if (items[newIndex]?.enabled) {
+    state.selectedIndex = newIndex;
+  }
 }
 
 export type SettingsAction =
   | { type: "switch_provider"; provider: Provider }
-  | { type: "select_model"; modelId: string; provider: Provider }
+  | { type: "select_model"; modelId: AnthropicModel | OpenAIModel; provider: Provider }
   | { type: "add_anthropic" }
   | { type: "add_openai" }
   | { type: "clear_keys" }
   | { type: "toggle_telemetry" }
-  | { type: "done" }
+  | { type: "adjust_setting"; key: keyof FilterSettings; delta: number }
   | null;
 
 export function selectSettingsItem(
@@ -355,13 +542,43 @@ export function selectSettingsItem(
     case "telemetry":
       return { type: "toggle_telemetry" };
 
+    case "filter_setting":
+      // For filter settings, Enter increases the value
+      return {
+        type: "adjust_setting",
+        key: selected.item.key,
+        delta: SETTING_RANGES[selected.item.key].step,
+      };
+
     case "action":
       switch (selected.item.action) {
-        case "done":
-          return { type: "done" };
         case "clear_keys":
           return { type: "clear_keys" };
       }
+  }
+
+  return null;
+}
+
+/**
+ * Adjust a filter setting value (for left/right arrow keys).
+ */
+export function adjustSettingValue(
+  state: SettingsState,
+  chatProvider: Provider,
+  delta: number,
+): SettingsAction {
+  const items = getSettingsList(chatProvider);
+  const selected = items[state.selectedIndex];
+  if (!selected || !selected.enabled) return null;
+
+  if (selected.item.type === "filter_setting") {
+    const step = SETTING_RANGES[selected.item.key].step;
+    return {
+      type: "adjust_setting",
+      key: selected.item.key,
+      delta: delta > 0 ? step : -step,
+    };
   }
 
   return null;

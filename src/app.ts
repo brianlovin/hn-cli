@@ -71,10 +71,13 @@ import {
   initSettingsState,
   navigateSettings,
   selectSettingsItem,
+  adjustSettingValue,
   goBackInSettings,
   getSelectedProviderUrl,
   type SettingsState,
+  type SettingsAction,
 } from "./components/SettingsPanel";
+import { updateSetting, resetSettings, loadSettings, type FilterSettings } from "./settings";
 
 // Import services
 import {
@@ -160,6 +163,7 @@ export class HackerNewsApp {
   private authSetupFromSettings = false; // Track if auth setup was triggered from settings
   private settingsFromChatMode = false; // Track if settings was opened from chat mode
   private settingsIntent: "settings" | "chat" | "tldr" = "settings"; // Track why settings was opened
+  private initialFilterSettings: FilterSettings | null = null; // Snapshot of settings when panel opened
 
   // Update notification state
   private updateInfo: UpdateInfo | null = null;
@@ -411,6 +415,26 @@ export class HackerNewsApp {
       if (url) {
         this.callbacks.onOpenUrl?.(url);
       }
+    } else if (key.name === "left" || key.name === "h") {
+      // Decrease setting value
+      const action = adjustSettingValue(
+        this.settingsState,
+        getConfiguredProvider() || "anthropic",
+        -1,
+      );
+      if (action) {
+        this.handleSettingsAction(action);
+      }
+    } else if (key.name === "right" || key.name === "l") {
+      // Increase setting value
+      const action = adjustSettingValue(
+        this.settingsState,
+        getConfiguredProvider() || "anthropic",
+        1,
+      );
+      if (action) {
+        this.handleSettingsAction(action);
+      }
     } else if (key.name === "return" || key.name === "enter") {
       const action = selectSettingsItem(
         this.settingsState,
@@ -419,10 +443,14 @@ export class HackerNewsApp {
       if (action) {
         this.handleSettingsAction(action);
       }
+    } else if (key.name === "r") {
+      // Reset all filter settings to defaults
+      resetSettings();
+      this.rerenderSettings();
     }
   }
 
-  private handleSettingsAction(action: any) {
+  private handleSettingsAction(action: NonNullable<SettingsAction>) {
     switch (action.type) {
       case "switch_provider":
         const switchConfig = loadConfig();
@@ -433,10 +461,6 @@ export class HackerNewsApp {
           resetChatServiceClients(this.chatServiceState);
         }
         this.rerenderSettings();
-        break;
-
-      case "done":
-        this.hideSettings();
         break;
 
       case "add_anthropic":
@@ -493,6 +517,11 @@ export class HackerNewsApp {
 
       case "toggle_telemetry":
         setTelemetryEnabled(!isTelemetryEnabled());
+        this.rerenderSettings();
+        break;
+
+      case "adjust_setting":
+        updateSetting(action.key, loadSettings()[action.key] + action.delta);
         this.rerenderSettings();
         break;
     }
@@ -1579,7 +1608,8 @@ export class HackerNewsApp {
   private showSettings() {
     this.settingsMode = true;
     this.settingsFromChatMode = this.chatMode; // Remember where we came from
-    this.settingsState = initSettingsState();
+    this.settingsState = initSettingsState(this.ctx);
+    this.initialFilterSettings = { ...loadSettings() }; // Snapshot to detect changes
 
     // Cancel any pending loading interval
     this.cancelSuggestionLoadingInterval();
@@ -1599,29 +1629,26 @@ export class HackerNewsApp {
       });
     }
 
-    // Remove chat components
+    // Remove existing components from detail panel
     for (const child of this.storyDetailState.panel.getChildren()) {
       this.storyDetailState.panel.remove(child.id);
     }
 
-    this.rerenderSettings();
+    // Add settings components (header, scroll, shortcuts bar)
+    this.storyDetailState.panel.add(this.settingsState.header);
+    this.storyDetailState.panel.add(this.settingsState.scroll);
+    this.storyDetailState.panel.add(this.settingsState.shortcutsBar);
+
+    // Render settings content
+    renderSettings(this.ctx, this.settingsState, getConfiguredProvider() || "anthropic");
     this.saveToCache();
   }
 
   private rerenderSettings() {
     if (!this.settingsState) return;
 
-    // Clear existing
-    for (const child of this.storyDetailState.panel.getChildren()) {
-      this.storyDetailState.panel.remove(child.id);
-    }
-
-    const settingsUI = renderSettings(
-      this.ctx,
-      this.settingsState,
-      getConfiguredProvider() || "anthropic",
-    );
-    this.storyDetailState.panel.add(settingsUI);
+    // Just re-render the content (header, scroll, shortcuts already added)
+    renderSettings(this.ctx, this.settingsState, getConfiguredProvider() || "anthropic");
   }
 
   private hideSettings() {
@@ -1676,8 +1703,47 @@ export class HackerNewsApp {
       }
     }
 
+    // Check if filter settings changed and refresh if needed
+    const needsRefresh = this.checkIfSettingsRequireRefresh();
+
     this.settingsState = null;
+    this.initialFilterSettings = null;
     this.saveToCache();
+
+    // Refresh stories if settings affecting the list changed
+    if (needsRefresh) {
+      this.refresh();
+    }
+  }
+
+  /**
+   * Check if any settings that affect the story list have changed.
+   * Returns true if a refresh is needed.
+   */
+  private checkIfSettingsRequireRefresh(): boolean {
+    if (!this.initialFilterSettings) return false;
+
+    const current = loadSettings();
+    const initial = this.initialFilterSettings;
+
+    // Settings that affect which stories are shown or their order
+    const storyListSettings: (keyof FilterSettings)[] = [
+      "maxPosts",
+      "fetchLimit",
+      "hoursWindow",
+      "minPoints",
+      "minComments",
+      "commentWeight",
+      "recencyBonusMax",
+    ];
+
+    for (const key of storyListSettings) {
+      if (current[key] !== initial[key]) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   private async refresh() {
