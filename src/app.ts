@@ -40,6 +40,8 @@ import {
   renderChatMessages,
   scrollChatToBottom,
   addChatMessage,
+  startTypingIndicator,
+  stopTypingIndicator,
   type ChatPanelState,
 } from "./components/ChatPanel";
 import { renderSuggestions, navigateSuggestion } from "./components/Suggestions";
@@ -687,6 +689,11 @@ export class HackerNewsApp {
 
     if (!this.selectedPost) return;
 
+    // Start typing indicator animation
+    startTypingIndicator(this.ctx, this.chatPanelState, this.chatServiceState.provider);
+
+    let receivedFirstText = false;
+
     await streamAIResponse(
       this.chatServiceState,
       this.chatPanelState.messages,
@@ -694,15 +701,26 @@ export class HackerNewsApp {
       this.selectedPost,
       {
         onText: (text) => {
+          // Stop typing indicator on first text
+          if (!receivedFirstText && this.chatPanelState) {
+            receivedFirstText = true;
+            stopTypingIndicator(this.chatPanelState);
+          }
           if (this.chatPanelState?.messages[assistantMsgIndex]) {
             this.chatPanelState.messages[assistantMsgIndex].content = text;
             renderChatMessages(this.ctx, this.chatPanelState, this.chatServiceState!.provider);
           }
         },
         onComplete: () => {
+          if (this.chatPanelState) {
+            stopTypingIndicator(this.chatPanelState);
+          }
           this.generateFollowUpQuestionsIfNeeded();
         },
         onError: (error) => {
+          if (this.chatPanelState) {
+            stopTypingIndicator(this.chatPanelState);
+          }
           const providerName =
             this.chatServiceState?.provider === "anthropic" ? "Anthropic" : "OpenAI";
           if (this.chatPanelState?.messages[assistantMsgIndex]) {
@@ -892,6 +910,11 @@ export class HackerNewsApp {
     this.settingsMode = true;
     this.settingsState = initSettingsState();
 
+    // Blur the chat input to remove cursor
+    if (this.chatPanelState?.input) {
+      this.chatPanelState.input.blur();
+    }
+
     // Save the chat session before switching to settings
     if (this.selectedPost && this.chatPanelState) {
       this.savedChatSessions.set(this.selectedPost.id, {
@@ -955,15 +978,17 @@ export class HackerNewsApp {
         this.chatPanelState.suggestions.selectedIndex = savedSession.suggestions.length > 0
           ? savedSession.suggestions.length - 1
           : -1;
-        renderChatMessages(this.ctx, this.chatPanelState, this.chatServiceState.provider);
       }
 
-      // Re-focus chat input
+      // Render messages and focus input
+      renderChatMessages(this.ctx, this.chatPanelState, this.chatServiceState.provider);
+
       if (this.chatPanelState.input) {
         this.chatPanelState.input.focus();
         this.chatPanelState.input.clear();
       }
 
+      // Render suggestions (either restored from saved session or default)
       renderSuggestions(this.ctx, this.chatPanelState.suggestions);
     }
 

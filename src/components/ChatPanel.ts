@@ -12,6 +12,7 @@ import { createSuggestionsContainer, type SuggestionsState, initSuggestionsState
 import { createChatInput } from "./ChatInput";
 import { createStoryHeader } from "./StoryHeader";
 import type { Provider } from "../config";
+import { LOADING_CHARS } from "../utils";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -31,6 +32,10 @@ export interface ChatPanelState {
   suggestions: SuggestionsState;
   messages: ChatMessage[];
   isActive: boolean;
+  // Typing indicator state
+  isTyping: boolean;
+  typingFrame: number;
+  typingInterval: ReturnType<typeof setInterval> | null;
 }
 
 export function createChatPanel(
@@ -100,6 +105,9 @@ export function createChatPanel(
     suggestions: suggestionsState,
     messages: [],
     isActive: true,
+    isTyping: false,
+    typingFrame: 0,
+    typingInterval: null,
   };
 }
 
@@ -173,4 +181,42 @@ export function addChatMessage(
 ): void {
   state.messages.push({ role, content });
   renderChatMessages(ctx, state, provider);
+}
+
+export function startTypingIndicator(
+  ctx: RenderContext,
+  state: ChatPanelState,
+  provider: Provider,
+): void {
+  if (state.typingInterval) return; // Already running
+
+  state.isTyping = true;
+  state.typingFrame = 0;
+
+  state.typingInterval = setInterval(() => {
+    if (!state.isActive || !state.isTyping) {
+      stopTypingIndicator(state);
+      return;
+    }
+
+    state.typingFrame = (state.typingFrame + 1) % LOADING_CHARS.length;
+
+    // Update the last message (the placeholder) with the typing indicator
+    const lastMsg = state.messages[state.messages.length - 1];
+    if (lastMsg && lastMsg.role === "assistant" && lastMsg.content === "...") {
+      const char = LOADING_CHARS[state.typingFrame] ?? "\u280B";
+      lastMsg.content = char;
+      renderChatMessages(ctx, state, provider);
+      // Reset to "..." so the next frame updates correctly
+      lastMsg.content = "...";
+    }
+  }, 80);
+}
+
+export function stopTypingIndicator(state: ChatPanelState): void {
+  state.isTyping = false;
+  if (state.typingInterval) {
+    clearInterval(state.typingInterval);
+    state.typingInterval = null;
+  }
 }
