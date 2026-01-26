@@ -43,7 +43,7 @@ export function renderComment(
   // Author - root comments get orange accent color
   const authorText = new TextRenderable(ctx, {
     content: comment.user || "[deleted]",
-    fg: isRootComment ? COLORS.accent : COLORS.textDim,
+    fg: isRootComment ? COLORS.accent : COLORS.textSecondary,
   });
   container.add(authorText);
 
@@ -51,14 +51,14 @@ export function renderComment(
   if (comment.content) {
     const contentText = new TextRenderable(ctx, {
       content: stripHtml(comment.content),
-      fg: COLORS.text,
+      fg: COLORS.textPrimary,
       wrapMode: "word",
     });
     container.add(contentText);
   } else if (comment.deleted) {
     const deletedText = new TextRenderable(ctx, {
       content: "[deleted]",
-      fg: COLORS.textMuted,
+      fg: COLORS.textTertiary,
     });
     container.add(deletedText);
   }

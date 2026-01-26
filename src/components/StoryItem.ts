@@ -32,7 +32,7 @@ export function createStoryItem(
   const chevronIndicator = new TextRenderable(ctx, {
     id: `chevron-${post.id}`,
     content: isSelected ? "\u203A" : "\u2022",
-    fg: isSelected ? COLORS.accent : COLORS.textVeryDim,
+    fg: isSelected ? COLORS.accent : COLORS.textTertiary,
     width: 2,
     paddingLeft: 1,
   });
@@ -51,7 +51,7 @@ export function createStoryItem(
   const titleText = new TextRenderable(ctx, {
     id: `title-${post.id}`,
     content: truncateText(post.title, MAX_TITLE_LENGTH),
-    fg: isSelected ? COLORS.accent : COLORS.text,
+    fg: isSelected ? COLORS.accent : COLORS.textPrimary,
     maxHeight: 2,
   });
   content.add(titleText);
@@ -61,7 +61,7 @@ export function createStoryItem(
     const domainText = new TextRenderable(ctx, {
       id: `domain-${post.id}`,
       content: post.domain,
-      fg: COLORS.textDim,
+      fg: COLORS.textSecondary,
     });
     content.add(domainText);
   }
@@ -83,7 +83,7 @@ export function updateStoryItemStyle(
       chevronIndicator.content = isSelected ? "\u203A" : "\u2022";
       (chevronIndicator as any).fg = isSelected
         ? COLORS.accent
-        : COLORS.textVeryDim;
+        : COLORS.textTertiary;
     }
 
     // Update title color (inside content box)
@@ -92,7 +92,7 @@ export function updateStoryItemStyle(
     if (contentChildren.length > 0) {
       const titleText = contentChildren[0] as TextRenderable;
       if (titleText && "content" in titleText) {
-        (titleText as any).fg = isSelected ? COLORS.accent : COLORS.text;
+        (titleText as any).fg = isSelected ? COLORS.accent : COLORS.textPrimary;
       }
     }
   }

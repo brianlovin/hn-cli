@@ -8,72 +8,60 @@ import {
   OPENAI_MODELS,
 } from "../config";
 
-export interface SettingsItem {
-  label: string;
-  action: string;
+type SettingsItemType =
+  | { type: "provider"; provider: Provider; hasKey: boolean }
+  | { type: "model"; modelId: string; modelName: string }
+  | { type: "action"; action: "done" | "clear_keys" };
+
+interface SettingsListItem {
+  item: SettingsItemType;
   enabled: boolean;
 }
 
 export interface SettingsState {
-  section: "main" | "model";
   selectedIndex: number;
-  modelProvider: Provider;
 }
 
 export function initSettingsState(): SettingsState {
   return {
-    section: "main",
     selectedIndex: 0,
-    modelProvider: "anthropic",
   };
 }
 
-export function getSettingsItems(chatProvider: Provider): SettingsItem[] {
+function getSettingsList(chatProvider: Provider): SettingsListItem[] {
   const hasAnthropic = !!getApiKey("anthropic");
   const hasOpenAI = !!getApiKey("openai");
+  const models = chatProvider === "anthropic" ? ANTHROPIC_MODELS : OPENAI_MODELS;
 
-  const items: SettingsItem[] = [];
+  const items: SettingsListItem[] = [];
 
-  // Provider selection
+  // Provider options (always enabled - selecting without key triggers add flow)
   items.push({
-    label: `Provider: ${chatProvider === "anthropic" ? "Anthropic" : "OpenAI"}`,
-    action: "switch_provider",
-    enabled: hasAnthropic && hasOpenAI,
+    item: { type: "provider", provider: "anthropic", hasKey: hasAnthropic },
+    enabled: true,
   });
-
-  // Model selection for current provider
-  const currentModel = getModel(chatProvider);
-  const models =
-    chatProvider === "anthropic" ? ANTHROPIC_MODELS : OPENAI_MODELS;
-  const modelName =
-    models.find((m) => m.id === currentModel)?.name || currentModel;
   items.push({
-    label: `Model: ${modelName}`,
-    action: "change_model",
+    item: { type: "provider", provider: "openai", hasKey: hasOpenAI },
     enabled: true,
   });
 
-  // Add API key
-  if (!hasAnthropic) {
+  // Model options for current provider
+  for (const model of models) {
     items.push({
-      label: "Add Anthropic API key",
-      action: "add_anthropic",
-      enabled: true,
-    });
-  }
-  if (!hasOpenAI) {
-    items.push({
-      label: "Add OpenAI API key",
-      action: "add_openai",
+      item: { type: "model", modelId: model.id, modelName: model.name },
       enabled: true,
     });
   }
 
-  // Clear tokens
+  // Action buttons
+  items.push({
+    item: { type: "action", action: "done" },
+    enabled: true,
+  });
+
   if (hasAnthropic || hasOpenAI) {
     items.push({
-      label: "Clear all API keys",
-      action: "clear_keys",
+      item: { type: "action", action: "clear_keys" },
       enabled: true,
     });
   }
@@ -96,126 +84,159 @@ export function renderSettings(
     backgroundColor: COLORS.bg,
   });
 
+  const items = getSettingsList(chatProvider);
+  const currentModel = getModel(chatProvider);
+
   // Header
   const header = new TextRenderable(ctx, {
     content: "Settings",
     fg: COLORS.accent,
   });
   container.add(header);
+  container.add(new BoxRenderable(ctx, { height: 1 }));
+
+  // Provider section
+  const providerHeader = new TextRenderable(ctx, {
+    content: "Provider",
+    fg: COLORS.textPrimary,
+  });
+  container.add(providerHeader);
+
+  for (let i = 0; i < items.length; i++) {
+    const listItem = items[i];
+    if (!listItem || listItem.item.type !== "provider") continue;
+
+    const isSelected = i === state.selectedIndex;
+    const isActive = listItem.item.provider === chatProvider;
+    const hasKey = listItem.item.hasKey;
+    const providerName = listItem.item.provider === "anthropic" ? "Anthropic" : "OpenAI";
+
+    const itemBox = new BoxRenderable(ctx, {
+      flexDirection: "row",
+      gap: 1,
+      paddingLeft: 2,
+    });
+
+    const indicator = new TextRenderable(ctx, {
+      content: isSelected ? "›" : " ",
+      fg: COLORS.accent,
+    });
+    itemBox.add(indicator);
+
+    const radio = new TextRenderable(ctx, {
+      content: isActive ? "●" : "○",
+      fg: isActive ? COLORS.accent : COLORS.textSecondary,
+    });
+    itemBox.add(radio);
+
+    const label = new TextRenderable(ctx, {
+      content: providerName,
+      fg: isSelected ? COLORS.accent : COLORS.textPrimary,
+    });
+    itemBox.add(label);
+
+    if (!hasKey) {
+      const hint = new TextRenderable(ctx, {
+        content: "Add API Key",
+        fg: COLORS.textSecondary,
+      });
+      itemBox.add(hint);
+    }
+
+    container.add(itemBox);
+  }
 
   container.add(new BoxRenderable(ctx, { height: 1 }));
 
-  if (state.section === "main") {
-    renderMainSection(ctx, container, state, chatProvider);
-  } else if (state.section === "model") {
-    renderModelSection(ctx, container, state);
+  // Model section
+  const modelHeader = new TextRenderable(ctx, {
+    content: "Model",
+    fg: COLORS.textPrimary,
+  });
+  container.add(modelHeader);
+
+  for (let i = 0; i < items.length; i++) {
+    const listItem = items[i];
+    if (!listItem || listItem.item.type !== "model") continue;
+
+    const isSelected = i === state.selectedIndex;
+    const isActive = listItem.item.modelId === currentModel;
+
+    const itemBox = new BoxRenderable(ctx, {
+      flexDirection: "row",
+      gap: 1,
+      paddingLeft: 2,
+    });
+
+    const indicator = new TextRenderable(ctx, {
+      content: isSelected ? "›" : " ",
+      fg: COLORS.accent,
+    });
+    itemBox.add(indicator);
+
+    const radio = new TextRenderable(ctx, {
+      content: isActive ? "●" : "○",
+      fg: isActive ? COLORS.accent : COLORS.textSecondary,
+    });
+    itemBox.add(radio);
+
+    const label = new TextRenderable(ctx, {
+      content: listItem.item.modelName,
+      fg: isSelected ? COLORS.accent : COLORS.textPrimary,
+    });
+    itemBox.add(label);
+
+    container.add(itemBox);
   }
+
+  container.add(new BoxRenderable(ctx, { height: 1 }));
+
+  // Actions section
+  for (let i = 0; i < items.length; i++) {
+    const listItem = items[i];
+    if (!listItem || listItem.item.type !== "action") continue;
+
+    const isSelected = i === state.selectedIndex;
+    let label = "";
+    switch (listItem.item.action) {
+      case "done":
+        label = "Done";
+        break;
+      case "clear_keys":
+        label = "Clear All API Keys";
+        break;
+    }
+
+    const itemBox = new BoxRenderable(ctx, {
+      flexDirection: "row",
+      gap: 1,
+      paddingLeft: 2,
+    });
+
+    const indicator = new TextRenderable(ctx, {
+      content: isSelected ? "›" : " ",
+      fg: COLORS.accent,
+    });
+    itemBox.add(indicator);
+
+    const text = new TextRenderable(ctx, {
+      content: `[${label}]`,
+      fg: isSelected ? COLORS.accent : COLORS.textPrimary,
+    });
+    itemBox.add(text);
+
+    container.add(itemBox);
+  }
+
+  container.add(new BoxRenderable(ctx, { height: 2 }));
+
+  const hint = new TextRenderable(ctx, {
+    content: "↑/↓ navigate  Enter select  Esc back",
+    fg: COLORS.textSecondary,
+  });
+  container.add(hint);
 
   return container;
-}
-
-function renderMainSection(
-  ctx: RenderContext,
-  container: BoxRenderable,
-  state: SettingsState,
-  chatProvider: Provider,
-): void {
-  const items = getSettingsItems(chatProvider);
-
-  for (let index = 0; index < items.length; index++) {
-    const item = items[index];
-    if (!item) continue;
-
-    const isSelected = index === state.selectedIndex;
-    const itemBox = new BoxRenderable(ctx, {
-      flexDirection: "row",
-      gap: 1,
-    });
-
-    const indicator = new TextRenderable(ctx, {
-      content: isSelected ? "\u203A" : " ",
-      fg: COLORS.accent,
-    });
-    itemBox.add(indicator);
-
-    const label = new TextRenderable(ctx, {
-      content: item.label,
-      fg: isSelected
-        ? COLORS.accent
-        : item.enabled
-          ? COLORS.text
-          : COLORS.textDim,
-    });
-    itemBox.add(label);
-
-    container.add(itemBox);
-  }
-
-  container.add(new BoxRenderable(ctx, { height: 2 }));
-
-  const hint = new TextRenderable(ctx, {
-    content: "\u2191/\u2193 navigate  Enter select  Esc back",
-    fg: COLORS.textDim,
-  });
-  container.add(hint);
-}
-
-function renderModelSection(
-  ctx: RenderContext,
-  container: BoxRenderable,
-  state: SettingsState,
-): void {
-  const models =
-    state.modelProvider === "anthropic" ? ANTHROPIC_MODELS : OPENAI_MODELS;
-  const currentModel = getModel(state.modelProvider);
-
-  const subtitle = new TextRenderable(ctx, {
-    content: `Select ${state.modelProvider === "anthropic" ? "Anthropic" : "OpenAI"} model:`,
-    fg: COLORS.text,
-  });
-  container.add(subtitle);
-
-  container.add(new BoxRenderable(ctx, { height: 1 }));
-
-  for (let index = 0; index < models.length; index++) {
-    const model = models[index];
-    if (!model) continue;
-
-    const isSelected = index === state.selectedIndex;
-    const isCurrent = model.id === currentModel;
-    const itemBox = new BoxRenderable(ctx, {
-      flexDirection: "row",
-      gap: 1,
-    });
-
-    const indicator = new TextRenderable(ctx, {
-      content: isSelected ? "\u203A" : " ",
-      fg: COLORS.accent,
-    });
-    itemBox.add(indicator);
-
-    const dot = new TextRenderable(ctx, {
-      content: isCurrent ? "\u25CF" : "\u25CB",
-      fg: isCurrent ? COLORS.accent : COLORS.textDim,
-    });
-    itemBox.add(dot);
-
-    const label = new TextRenderable(ctx, {
-      content: model.name,
-      fg: isSelected ? COLORS.accent : COLORS.text,
-    });
-    itemBox.add(label);
-
-    container.add(itemBox);
-  }
-
-  container.add(new BoxRenderable(ctx, { height: 2 }));
-
-  const hint = new TextRenderable(ctx, {
-    content: "\u2191/\u2193 navigate  Enter select  Esc back",
-    fg: COLORS.textDim,
-  });
-  container.add(hint);
 }
 
 export function navigateSettings(
@@ -223,83 +244,61 @@ export function navigateSettings(
   delta: number,
   chatProvider: Provider,
 ): void {
-  let maxIndex: number;
-
-  if (state.section === "main") {
-    maxIndex = getSettingsItems(chatProvider).length - 1;
-  } else {
-    const models =
-      state.modelProvider === "anthropic" ? ANTHROPIC_MODELS : OPENAI_MODELS;
-    maxIndex = models.length - 1;
-  }
-
-  state.selectedIndex = Math.max(
-    0,
-    Math.min(maxIndex, state.selectedIndex + delta),
-  );
+  const items = getSettingsList(chatProvider);
+  const maxIndex = items.length - 1;
+  state.selectedIndex = Math.max(0, Math.min(maxIndex, state.selectedIndex + delta));
 }
 
 export type SettingsAction =
-  | { type: "switch_provider" }
-  | { type: "change_model"; provider: Provider }
+  | { type: "switch_provider"; provider: Provider }
+  | { type: "select_model"; modelId: string; provider: Provider }
   | { type: "add_anthropic" }
   | { type: "add_openai" }
   | { type: "clear_keys" }
-  | { type: "select_model"; modelId: string; provider: Provider }
-  | { type: "back_to_main" }
+  | { type: "done" }
   | null;
 
 export function selectSettingsItem(
   state: SettingsState,
   chatProvider: Provider,
 ): SettingsAction {
-  if (state.section === "main") {
-    const items = getSettingsItems(chatProvider);
-    const selected = items[state.selectedIndex];
-    if (!selected || !selected.enabled) return null;
+  const items = getSettingsList(chatProvider);
+  const selected = items[state.selectedIndex];
+  if (!selected || !selected.enabled) return null;
 
-    switch (selected.action) {
-      case "switch_provider":
-        return { type: "switch_provider" };
+  switch (selected.item.type) {
+    case "provider":
+      // If no API key, trigger add key flow
+      if (!selected.item.hasKey) {
+        return selected.item.provider === "anthropic"
+          ? { type: "add_anthropic" }
+          : { type: "add_openai" };
+      }
+      // Switch provider if different from current
+      if (selected.item.provider !== chatProvider) {
+        return { type: "switch_provider", provider: selected.item.provider };
+      }
+      return null;
 
-      case "change_model":
-        state.section = "model";
-        state.modelProvider = chatProvider;
-        state.selectedIndex = 0;
-        return { type: "change_model", provider: chatProvider };
-
-      case "add_anthropic":
-        return { type: "add_anthropic" };
-
-      case "add_openai":
-        return { type: "add_openai" };
-
-      case "clear_keys":
-        return { type: "clear_keys" };
-    }
-  } else if (state.section === "model") {
-    const models =
-      state.modelProvider === "anthropic" ? ANTHROPIC_MODELS : OPENAI_MODELS;
-    const selected = models[state.selectedIndex];
-    if (selected) {
-      state.section = "main";
-      state.selectedIndex = 1; // Back to model item
+    case "model":
       return {
         type: "select_model",
-        modelId: selected.id,
-        provider: state.modelProvider,
+        modelId: selected.item.modelId,
+        provider: chatProvider,
       };
-    }
+
+    case "action":
+      switch (selected.item.action) {
+        case "done":
+          return { type: "done" };
+        case "clear_keys":
+          return { type: "clear_keys" };
+      }
   }
 
   return null;
 }
 
-export function goBackInSettings(state: SettingsState): boolean {
-  if (state.section === "model") {
-    state.section = "main";
-    state.selectedIndex = 0;
-    return true; // Handled, stay in settings
-  }
-  return false; // Not handled, exit settings
+export function goBackInSettings(_state: SettingsState): boolean {
+  return false; // Always exit settings on Esc
 }

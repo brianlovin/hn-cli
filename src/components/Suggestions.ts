@@ -59,7 +59,7 @@ export function renderSuggestions(
     const loadingText = new TextRenderable(ctx, {
       id: "suggestions-loading",
       content: `${LOADING_CHARS[state.loadingFrame] ?? "\u280B"} Generating suggestions...`,
-      fg: COLORS.textDim,
+      fg: COLORS.textSecondary,
     });
     state.container.add(loadingText);
     return;
@@ -67,6 +67,21 @@ export function renderSuggestions(
 
   // No suggestions to show
   if (state.suggestions.length === 0) return;
+
+  // Add header with star icon for consistent keyline
+  const header = new TextRenderable(ctx, {
+    id: "suggestions-header",
+    content: "\u2726 Suggested questions",
+    fg: COLORS.textTertiary,
+  });
+  state.container.add(header);
+
+  // Add gap after header
+  const spacer = new BoxRenderable(ctx, {
+    id: "suggestions-spacer",
+    height: 1,
+  });
+  state.container.add(spacer);
 
   // Render each suggestion in a BoxRenderable row
   for (let index = 0; index < state.suggestions.length; index++) {
@@ -83,33 +98,44 @@ export function renderSuggestions(
       backgroundColor: COLORS.bg,
     });
 
-    // Indicator
+    // Indicator: chevron when selected, bullet dot when not
     const indicator = new TextRenderable(ctx, {
       id: `suggestion-indicator-${index}`,
-      content: isSelected ? "\u203A " : "  ",
-      fg: COLORS.accent,
+      content: isSelected ? "\u203A " : "\u2022 ",
+      fg: isSelected ? COLORS.accent : COLORS.textSecondary,
       width: 2,
+      flexShrink: 0,
     });
     row.add(indicator);
+
+    // Text container allows hint to flow naturally after text
+    const textContainer = new BoxRenderable(ctx, {
+      id: `suggestion-text-container-${index}`,
+      flexGrow: 1,
+      flexDirection: "row",
+      flexWrap: "wrap",
+    });
 
     // Suggestion text
     const text = new TextRenderable(ctx, {
       id: `suggestion-text-${index}`,
       content: suggestion,
-      fg: isSelected ? COLORS.accent : COLORS.textDim,
+      fg: isSelected ? COLORS.accent : COLORS.textSecondary,
+      wrapMode: "word",
     });
-    row.add(text);
+    textContainer.add(text);
 
-    // Show hint for selected suggestion
+    // Show hint for selected suggestion (flows after text)
     if (isSelected) {
       const hint = new TextRenderable(ctx, {
         id: `suggestion-hint-${index}`,
-        content: "  tab to type",
-        fg: COLORS.textVeryDim,
+        content: " tab to type",
+        fg: COLORS.textTertiary,
       });
-      row.add(hint);
+      textContainer.add(hint);
     }
 
+    row.add(textContainer);
     state.container.add(row);
   }
 }

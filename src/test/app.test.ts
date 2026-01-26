@@ -508,6 +508,9 @@ describe("HackerNewsApp", () => {
       const { renderSuggestions } = await import("../components/Suggestions");
       renderSuggestions((app as any).ctx, chatPanelState.suggestions);
 
+      // Focus the input before typing (input is not auto-focused anymore)
+      chatPanelState.input.focus();
+
       // Type some text into the input
       chatPanelState.input.insertText("Hello, this is my question");
       await renderOnce();
@@ -626,6 +629,8 @@ describe("HackerNewsApp", () => {
       chatPanelState.suggestions.suggestions = [];
       chatPanelState.suggestions.selectedIndex = -1;
 
+      // Focus the input before typing (input is not auto-focused anymore)
+      chatPanelState.input.focus();
       chatPanelState.input.insertText("My custom question");
       await renderOnce();
 
@@ -643,7 +648,7 @@ describe("HackerNewsApp", () => {
       expect(chatPanelState.messages.length).toBeGreaterThan(initialMessageCount);
     });
 
-    it("should hide story list panel when entering chat mode", async () => {
+    it("should keep story list visible when entering chat mode", async () => {
       const post = createMockPostWithComments({}, 2);
       app.setPostsForTesting([post]);
       await app.setSelectedPostForTesting(post);
@@ -651,25 +656,22 @@ describe("HackerNewsApp", () => {
 
       const contentArea = (app as any).contentArea;
       const storyListState = (app as any).storyListState;
-      const storyDetailState = (app as any).storyDetailState;
 
       // Get initial state - content area should have 2 children (story list + detail)
       const initialChildren = contentArea.getChildren().length;
       expect(initialChildren).toBe(2);
-      const initialDetailWidth = storyDetailState.panel.width;
 
       // Enter chat mode
       (app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
       (app as any).showChatView();
       await renderOnce();
 
-      // Story list should be removed from content area, detail panel should be wider
-      expect(contentArea.getChildren().length).toBe(1);
-      expect(contentArea.getChildren()[0]).toBe(storyDetailState.panel);
-      expect(storyDetailState.panel.width).not.toBe(initialDetailWidth);
+      // Story list should still be visible (2 children)
+      expect(contentArea.getChildren().length).toBe(2);
+      expect(contentArea.getChildren()[0]).toBe(storyListState.panel);
     });
 
-    it("should show story list panel when exiting chat mode", async () => {
+    it("should keep story list visible when exiting chat mode", async () => {
       const post = createMockPostWithComments({}, 2);
       app.setPostsForTesting([post]);
       await app.setSelectedPostForTesting(post);
@@ -677,10 +679,7 @@ describe("HackerNewsApp", () => {
 
       const contentArea = (app as any).contentArea;
       const storyListState = (app as any).storyListState;
-      const storyDetailState = (app as any).storyDetailState;
 
-      // Get initial state
-      const initialDetailWidth = storyDetailState.panel.width;
       expect(contentArea.getChildren().length).toBe(2);
 
       // Enter chat mode
@@ -688,20 +687,19 @@ describe("HackerNewsApp", () => {
       (app as any).showChatView();
       await renderOnce();
 
-      // Verify hidden state
-      expect(contentArea.getChildren().length).toBe(1);
+      // Story list should still be visible
+      expect(contentArea.getChildren().length).toBe(2);
 
       // Exit chat mode
       (app as any).hideChatView();
       await renderOnce();
 
-      // Story list should be back, detail panel restored
+      // Story list should still be visible
       expect(contentArea.getChildren().length).toBe(2);
       expect(contentArea.getChildren()[0]).toBe(storyListState.panel);
-      expect(storyDetailState.panel.width).toBe(initialDetailWidth);
     });
 
-    it("should not show story list in chat mode frame", async () => {
+    it("should keep story list visible in chat mode", async () => {
       const posts = createMockPosts(5);
       app.setPostsForTesting(posts);
       await app.setSelectedPostForTesting(posts[0]!);
@@ -717,11 +715,10 @@ describe("HackerNewsApp", () => {
       (app as any).showChatView();
       await renderOnce();
 
-      // Story list should not be visible in the rendered frame
+      // Story list should remain visible in chat mode
       frame = captureCharFrame();
-      // The detail panel should now take full width, story list hidden
-      // We shouldn't see the story list sidebar markers
-      expect(frame).not.toContain("Test Story 2"); // Other stories shouldn't be visible
+      expect(frame).toContain("Test Story 1");
+      expect(frame).toContain("Test Story 2");
     });
 
     it("should render chat header with title and domain on separate lines", async () => {

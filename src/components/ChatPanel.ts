@@ -123,27 +123,65 @@ export function renderChatMessages(
     state.content.remove(child.id);
   }
 
+  // Find the index of the last user message to determine the "current exchange"
+  // The current exchange = last user message + any following assistant messages
+  let lastUserIndex = -1;
+  for (let i = state.messages.length - 1; i >= 0; i--) {
+    if (state.messages[i]?.role === "user") {
+      lastUserIndex = i;
+      break;
+    }
+  }
+
   // Render each message
-  for (const msg of state.messages) {
+  for (let i = 0; i < state.messages.length; i++) {
+    const msg = state.messages[i];
+    if (!msg) continue;
+
+    // Messages in the current exchange (last user message + responses) are bright
+    // Earlier messages are dimmed
+    const isCurrentExchange = i >= lastUserIndex && lastUserIndex !== -1;
+
     const msgBox = new BoxRenderable(ctx, {
       width: "100%",
       flexDirection: "column",
       marginBottom: 1,
     });
 
+    // Header row with dot and name
+    const headerRow = new BoxRenderable(ctx, {
+      flexDirection: "row",
+      gap: 1,
+    });
+
+    const dotColor = msg.role === "user" ? COLORS.accent : COLORS.link;
+    const dot = new TextRenderable(ctx, {
+      content: "\u2022",
+      fg: dotColor,
+    });
+    headerRow.add(dot);
+
     const assistantName = provider === "anthropic" ? "Claude" : "GPT";
     const roleLabel = new TextRenderable(ctx, {
       content: msg.role === "user" ? "You" : assistantName,
-      fg: msg.role === "user" ? COLORS.accent : COLORS.link,
+      fg: dotColor,
     });
-    msgBox.add(roleLabel);
+    headerRow.add(roleLabel);
 
+    msgBox.add(headerRow);
+
+    // Content indented by 2 spaces (aligns with text after dot)
+    const contentBox = new BoxRenderable(ctx, {
+      width: "100%",
+      paddingLeft: 2,
+    });
     const contentText = new TextRenderable(ctx, {
       content: msg.content,
-      fg: COLORS.text,
+      fg: isCurrentExchange ? COLORS.textPrimary : COLORS.textSecondary,
       wrapMode: "word",
     });
-    msgBox.add(contentText);
+    contentBox.add(contentText);
+    msgBox.add(contentBox);
 
     state.content.add(msgBox);
   }

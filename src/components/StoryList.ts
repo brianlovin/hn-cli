@@ -21,6 +21,8 @@ export function createStoryList(ctx: RenderContext): StoryListState {
   const panel = new BoxRenderable(ctx, {
     id: "story-list-panel",
     width: "35%",
+    maxWidth: 60, // Cap at ~60 characters for wide terminals
+    flexShrink: 0, // Prevent shrinking during layout transitions
     height: "100%",
     flexDirection: "column",
     borderStyle: "single",
@@ -28,7 +30,6 @@ export function createStoryList(ctx: RenderContext): StoryListState {
     borderColor: COLORS.border,
     backgroundColor: COLORS.bg,
     paddingLeft: 1,
-    paddingBottom: 1,
   });
 
   const scroll = new ScrollBoxRenderable(ctx, {

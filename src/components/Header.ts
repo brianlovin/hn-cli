@@ -70,14 +70,14 @@ export function createHeader(
   // Loading indicator (hidden initially by being empty)
   const loadingIndicator = new TextRenderable(ctx, {
     content: "",
-    fg: COLORS.textDim,
+    fg: COLORS.textSecondary,
   });
   rightContainer.add(loadingIndicator);
 
   // GitHub link (shown by default)
   const githubLink = new TextRenderable(ctx, {
     content: "brianlovin/hn-cli",
-    fg: COLORS.textDim,
+    fg: COLORS.textSecondary,
     onMouseDown: () => {
       callbacks.onOpenGitHub?.();
     },
@@ -85,7 +85,7 @@ export function createHeader(
       (githubLink as any).fg = COLORS.link;
     },
     onMouseOut: () => {
-      (githubLink as any).fg = COLORS.textDim;
+      (githubLink as any).fg = COLORS.textSecondary;
     },
   });
   rightContainer.add(githubLink);
@@ -104,7 +104,7 @@ export function createHeader(
 
   const updateCommand = new TextRenderable(ctx, {
     content: "",
-    fg: COLORS.textDim,
+    fg: COLORS.textSecondary,
   });
 
   updateContainer.add(updateLabel);
