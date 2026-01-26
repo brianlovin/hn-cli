@@ -35,6 +35,8 @@ describe("HackerNewsApp", () => {
   });
 
   afterEach(async () => {
+    // Stop any intervals (typing indicators, etc.) before destroying
+    app.cleanup();
     // Wait for any pending async operations
     await renderer.idle();
     renderer.destroy();

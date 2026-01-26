@@ -1334,4 +1334,14 @@ export class HackerNewsApp {
       onOpenStoryUrl: () => this.openStoryUrl(),
     });
   }
+
+  /**
+   * Cleanup method for tests - stops typing indicators and other intervals
+   * that could cause crashes after renderer.destroy() is called.
+   */
+  cleanup() {
+    if (this.chatPanelState) {
+      stopTypingIndicator(this.chatPanelState);
+    }
+  }
 }
