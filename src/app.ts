@@ -91,7 +91,7 @@ export class HackerNewsApp {
   private callbacks: AppCallbacks;
 
   private posts: HackerNewsPost[] = [];
-  private selectedIndex = 0;
+  private selectedIndex = -1;
   private selectedPost: HackerNewsPost | null = null;
   private rootCommentIndex = 0;
 
@@ -100,6 +100,7 @@ export class HackerNewsApp {
   private storyListScroll!: ScrollBoxRenderable;
   private storyItems: Map<number, BoxRenderable> = new Map();
   private detailPanel!: BoxRenderable;
+  private detailHeader!: BoxRenderable;
   private detailScroll!: ScrollBoxRenderable;
   private detailContent!: BoxRenderable;
   private rootCommentBoxes: BoxRenderable[] = [];
@@ -109,7 +110,18 @@ export class HackerNewsApp {
   private loadingIndicator: TextRenderable | null = null;
   private loadingInterval: ReturnType<typeof setInterval> | null = null;
   private loadingFrame = 0;
-  private static readonly LOADING_CHARS = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+  private static readonly LOADING_CHARS = [
+    "⠋",
+    "⠙",
+    "⠹",
+    "⠸",
+    "⠼",
+    "⠴",
+    "⠦",
+    "⠧",
+    "⠇",
+    "⠏",
+  ];
 
   // Chat state
   private chatMode = false;
@@ -168,7 +180,10 @@ export class HackerNewsApp {
   private async detectTheme() {
     try {
       const palette = await this.renderer.getPalette({ timeout: 100 });
-      if (palette.defaultBackground && isLightBackground(palette.defaultBackground)) {
+      if (
+        palette.defaultBackground &&
+        isLightBackground(palette.defaultBackground)
+      ) {
         COLORS = { ...LIGHT_THEME };
       }
     } catch {
@@ -210,17 +225,42 @@ export class HackerNewsApp {
     });
 
     const title = new TextRenderable(this.ctx, {
-      content: "briOS HN",
+      content: "Hacker News",
       fg: COLORS.accent,
     });
     header.add(title);
+
+    // Right side container with loading indicator + GitHub link
+    const rightContainer = new BoxRenderable(this.ctx, {
+      flexDirection: "row",
+      gap: 2,
+      alignItems: "center",
+    });
 
     // Loading indicator (hidden initially by being empty)
     this.loadingIndicator = new TextRenderable(this.ctx, {
       content: "",
       fg: COLORS.textDim,
     });
-    header.add(this.loadingIndicator);
+    rightContainer.add(this.loadingIndicator);
+
+    // GitHub link
+    const githubLink = new TextRenderable(this.ctx, {
+      content: "brianlovin/hn-cli",
+      fg: COLORS.textDim,
+      onMouseDown: () => {
+        this.callbacks.onOpenUrl?.("https://github.com/brianlovin/hn-cli");
+      },
+      onMouseOver: () => {
+        (githubLink as any).fg = COLORS.link;
+      },
+      onMouseOut: () => {
+        (githubLink as any).fg = COLORS.textDim;
+      },
+    });
+    rightContainer.add(githubLink);
+
+    header.add(rightContainer);
 
     return header;
   }
@@ -233,7 +273,8 @@ export class HackerNewsApp {
       if (this.loadingIndicator && !this.renderer.isDestroyed) {
         const char = HackerNewsApp.LOADING_CHARS[this.loadingFrame] ?? "⠋";
         this.loadingIndicator.content = char;
-        this.loadingFrame = (this.loadingFrame + 1) % HackerNewsApp.LOADING_CHARS.length;
+        this.loadingFrame =
+          (this.loadingFrame + 1) % HackerNewsApp.LOADING_CHARS.length;
       }
     }, 80);
   }
@@ -303,6 +344,22 @@ export class HackerNewsApp {
       backgroundColor: COLORS.bg,
     });
 
+    // Detail header (stays fixed, outside scroll)
+    this.detailHeader = new BoxRenderable(this.ctx, {
+      id: "detail-header",
+      width: "100%",
+      flexDirection: "column",
+      flexShrink: 0,
+      paddingLeft: 2,
+      paddingRight: 2,
+      paddingTop: 1,
+      paddingBottom: 1,
+      borderStyle: "single",
+      border: ["bottom"],
+      borderColor: COLORS.border,
+      backgroundColor: COLORS.bg,
+    });
+
     this.detailScroll = new ScrollBoxRenderable(this.ctx, {
       width: "100%",
       flexGrow: 1,
@@ -324,6 +381,7 @@ export class HackerNewsApp {
     });
 
     this.detailScroll.add(this.detailContent);
+    this.detailPanel.add(this.detailHeader);
     this.detailPanel.add(this.detailScroll);
 
     // Keyboard shortcuts bar at bottom
@@ -365,7 +423,6 @@ export class HackerNewsApp {
       flexShrink: 0, // Don't shrink - preserve natural height for suggestions
       paddingLeft: 2,
       paddingRight: 2,
-      paddingTop: 1,
       backgroundColor: COLORS.bg,
     });
 
@@ -377,7 +434,6 @@ export class HackerNewsApp {
       alignItems: "flex-start",
       paddingLeft: 2,
       paddingRight: 2,
-      paddingTop: 1,
       backgroundColor: COLORS.bg,
       borderStyle: "single",
       border: ["top"],
@@ -399,10 +455,10 @@ export class HackerNewsApp {
       placeholder: "Ask a question about this story...",
       backgroundColor: COLORS.bg,
       keyBindings: [
-        // Enter to submit (handled below)
-        { name: "return", action: "submit" },
-        // Shift+Enter for new line
+        // Shift+Enter for new line (must be before plain return to match first)
         { name: "return", shift: true, action: "newline" },
+        // Enter to submit
+        { name: "return", action: "submit" },
       ],
     });
 
@@ -544,6 +600,7 @@ export class HackerNewsApp {
     (this.detailPanel as any).width = "100%";
 
     // Remove detail view components
+    this.detailPanel.remove(this.detailHeader.id);
     this.detailPanel.remove(this.detailScroll.id);
     this.detailPanel.remove(this.shortcutsBar.id);
 
@@ -565,7 +622,10 @@ export class HackerNewsApp {
     }, 10);
 
     // Add initial assistant message
-    this.addChatMessage("assistant", `I have the full context of "${this.selectedPost.title}" and all ${this.selectedPost.comments_count} comments. Ask me anything!`);
+    this.addChatMessage(
+      "assistant",
+      `I have the full context of "${this.selectedPost.title}" and all ${this.selectedPost.comments_count} comments. Ask me anything!`,
+    );
 
     // Show loading state and generate dynamic suggestions
     this.renderSuggestions();
@@ -595,6 +655,7 @@ export class HackerNewsApp {
     }
 
     // Re-add detail view components
+    this.detailPanel.add(this.detailHeader);
     this.detailPanel.add(this.detailScroll);
     this.detailPanel.add(this.shortcutsBar);
 
@@ -625,7 +686,8 @@ export class HackerNewsApp {
         marginBottom: 1,
       });
 
-      const assistantName = this.chatProvider === "anthropic" ? "Claude" : "GPT";
+      const assistantName =
+        this.chatProvider === "anthropic" ? "Claude" : "GPT";
       const roleLabel = new TextRenderable(this.ctx, {
         content: msg.role === "user" ? "You" : assistantName,
         fg: msg.role === "user" ? COLORS.accent : COLORS.link,
@@ -670,7 +732,8 @@ export class HackerNewsApp {
   }
 
   private buildStoryContext(post: HackerNewsPost): string {
-    const storyUrl = post.url || `https://news.ycombinator.com/item?id=${post.id}`;
+    const storyUrl =
+      post.url || `https://news.ycombinator.com/item?id=${post.id}`;
 
     let context = `# Hacker News Story\n\n`;
     context += `**Title:** ${post.title}\n`;
@@ -692,7 +755,10 @@ export class HackerNewsApp {
     return context;
   }
 
-  private formatCommentsForContext(comments: HackerNewsComment[], depth = 0): string {
+  private formatCommentsForContext(
+    comments: HackerNewsComment[],
+    depth = 0,
+  ): string {
     let result = "";
     const indent = "  ".repeat(depth);
 
@@ -700,7 +766,10 @@ export class HackerNewsApp {
       if (comment.user && comment.content) {
         const content = this.stripHtml(comment.content);
         result += `${indent}**${comment.user}:**\n`;
-        const indentedContent = content.split("\n").map(line => `${indent}${line}`).join("\n");
+        const indentedContent = content
+          .split("\n")
+          .map((line) => `${indent}${line}`)
+          .join("\n");
         result += `${indentedContent}\n\n`;
 
         if (comment.comments && comment.comments.length > 0) {
@@ -732,15 +801,25 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
 
     try {
       if (this.chatProvider === "anthropic") {
-        await this.streamAnthropicResponse(userMessage, systemPrompt, assistantMsgIndex);
+        await this.streamAnthropicResponse(
+          userMessage,
+          systemPrompt,
+          assistantMsgIndex,
+        );
       } else {
-        await this.streamOpenAIResponse(userMessage, systemPrompt, assistantMsgIndex);
+        await this.streamOpenAIResponse(
+          userMessage,
+          systemPrompt,
+          assistantMsgIndex,
+        );
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
-      const providerName = this.chatProvider === "anthropic" ? "Anthropic" : "OpenAI";
+      const providerName =
+        this.chatProvider === "anthropic" ? "Anthropic" : "OpenAI";
       if (this.chatMessages[assistantMsgIndex]) {
-        this.chatMessages[assistantMsgIndex].content = `Error: ${errorMsg}\n\nCheck your ${providerName} API key in ~/.config/hn-cli/config.json`;
+        this.chatMessages[assistantMsgIndex].content =
+          `Error: ${errorMsg}\n\nCheck your ${providerName} API key in ~/.config/hn-cli/config.json`;
         this.renderChatMessages();
       }
     }
@@ -748,7 +827,11 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
     this.isStreaming = false;
   }
 
-  private async streamAnthropicResponse(userMessage: string, systemPrompt: string, assistantMsgIndex: number) {
+  private async streamAnthropicResponse(
+    userMessage: string,
+    systemPrompt: string,
+    assistantMsgIndex: number,
+  ) {
     // Initialize Anthropic client if needed
     if (!this.anthropic) {
       const apiKey = getApiKey("anthropic");
@@ -759,10 +842,13 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
       model: getModel("anthropic") as string,
       max_tokens: 4096,
       system: systemPrompt,
-      messages: this.chatMessages.slice(0, -1).map(m => ({
-        role: m.role,
-        content: m.content,
-      })).concat([{ role: "user", content: userMessage }]),
+      messages: this.chatMessages
+        .slice(0, -1)
+        .map((m) => ({
+          role: m.role,
+          content: m.content,
+        }))
+        .concat([{ role: "user", content: userMessage }]),
     });
 
     let fullResponse = "";
@@ -778,7 +864,11 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
     await stream.finalMessage();
   }
 
-  private async streamOpenAIResponse(userMessage: string, systemPrompt: string, assistantMsgIndex: number) {
+  private async streamOpenAIResponse(
+    userMessage: string,
+    systemPrompt: string,
+    assistantMsgIndex: number,
+  ) {
     log("[openai-stream] Starting stream...");
 
     // Initialize OpenAI client if needed
@@ -798,7 +888,7 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
       stream: true,
       messages: [
         { role: "system", content: systemPrompt },
-        ...this.chatMessages.slice(0, -1).map(m => ({
+        ...this.chatMessages.slice(0, -1).map((m) => ({
           role: m.role as "user" | "assistant",
           content: m.content,
         })),
@@ -820,7 +910,10 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
       }
     }
 
-    log("[openai-stream] Stream complete, response length:", fullResponse.length);
+    log(
+      "[openai-stream] Stream complete, response length:",
+      fullResponse.length,
+    );
   }
 
   private createShortcutsBar(): BoxRenderable {
@@ -940,7 +1033,11 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
         }
 
         // Suggestion navigation when input is empty
-        if (this.suggestions.length > 0 && this.chatInput && !this.chatInput.plainText.trim()) {
+        if (
+          this.suggestions.length > 0 &&
+          this.chatInput &&
+          !this.chatInput.plainText.trim()
+        ) {
           if (key.name === "up" || key.name === "k") {
             this.navigateSuggestion(-1);
             return;
@@ -950,15 +1047,18 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
           }
         }
 
-        // Handle Enter key for chat submission
-        if (key.name === "return" || key.name === "enter") {
+        // Handle Enter key for chat submission (but not shift+enter which is newline)
+        if ((key.name === "return" || key.name === "enter") && !key.shift) {
           // If there's text in the input, send it
           if (this.chatInput && this.chatInput.plainText.trim()) {
             this.sendChatMessage();
             return;
           }
           // If no text but a suggestion is selected, send the suggestion
-          if (this.selectedSuggestionIndex >= 0 && this.suggestions.length > 0) {
+          if (
+            this.selectedSuggestionIndex >= 0 &&
+            this.suggestions.length > 0
+          ) {
             this.selectSuggestion();
             return;
           }
@@ -967,7 +1067,13 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
         }
 
         // Clear suggestions when user starts typing (any printable character)
-        if (this.suggestions.length > 0 && key.sequence && key.sequence.length === 1 && !key.ctrl && !key.meta) {
+        if (
+          this.suggestions.length > 0 &&
+          key.sequence &&
+          key.sequence.length === 1 &&
+          !key.ctrl &&
+          !key.meta
+        ) {
           const charCode = key.sequence.charCodeAt(0);
           // Printable ASCII characters (space to tilde)
           if (charCode >= 32 && charCode <= 126) {
@@ -978,10 +1084,18 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
         }
 
         // Restore suggestions when backspace clears the input
-        if (key.name === "backspace" && this.chatInput && this.originalSuggestions.length > 0) {
+        if (
+          key.name === "backspace" &&
+          this.chatInput &&
+          this.originalSuggestions.length > 0
+        ) {
           // Check after a tick if input is now empty
           setTimeout(() => {
-            if (this.chatInput && !this.chatInput.plainText.trim() && this.suggestions.length === 0) {
+            if (
+              this.chatInput &&
+              !this.chatInput.plainText.trim() &&
+              this.suggestions.length === 0
+            ) {
               this.suggestions = [...this.originalSuggestions];
               this.selectedSuggestionIndex = this.suggestions.length - 1;
               this.renderSuggestions();
@@ -1027,12 +1141,10 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
       this.posts = await getRankedPosts();
       this.stopLoadingAnimation();
       this.renderStoryList();
-      if (this.posts.length > 0) {
-        await this.selectStory(0);
-      }
+      this.renderEmptyDetail();
     } catch (error) {
       this.stopLoadingAnimation();
-      log("[ERROR]","Error loading posts:", error);
+      log("[ERROR]", "Error loading posts:", error);
     }
   }
 
@@ -1066,15 +1178,15 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
       },
     });
 
-    // Dot indicator column
-    const dotIndicator = new TextRenderable(this.ctx, {
-      id: `dot-${post.id}`,
-      content: isSelected ? "●" : "•",
+    // Chevron indicator column
+    const chevronIndicator = new TextRenderable(this.ctx, {
+      id: `chevron-${post.id}`,
+      content: isSelected ? "›" : " ",
       fg: isSelected ? COLORS.accent : COLORS.textVeryDim,
       width: 2,
       paddingLeft: 1,
     });
-    item.add(dotIndicator);
+    item.add(chevronIndicator);
 
     // Content area
     const content = new BoxRenderable(this.ctx, {
@@ -1130,7 +1242,7 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
         this.renderDetail(fullPost);
       }
     } catch (error) {
-      log("[ERROR]","Error loading post:", error);
+      log("[ERROR]", "Error loading post:", error);
     }
 
     if (this.renderer.isDestroyed) return;
@@ -1150,13 +1262,15 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
     if (!post) return;
 
     const children = item.getChildren();
-    // children[0] = dot indicator, children[1] = content box
+    // children[0] = chevron indicator, children[1] = content box
     if (children.length >= 2) {
-      // Update dot indicator
-      const dotIndicator = children[0] as TextRenderable;
-      if (dotIndicator && "content" in dotIndicator) {
-        dotIndicator.content = isSelected ? "●" : "•";
-        (dotIndicator as any).fg = isSelected ? COLORS.accent : COLORS.textVeryDim;
+      // Update chevron indicator
+      const chevronIndicator = children[0] as TextRenderable;
+      if (chevronIndicator && "content" in chevronIndicator) {
+        chevronIndicator.content = isSelected ? "›" : " ";
+        (chevronIndicator as any).fg = isSelected
+          ? COLORS.accent
+          : COLORS.textVeryDim;
       }
 
       // Update title color (inside content box)
@@ -1172,29 +1286,25 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
   }
 
   private renderDetail(post: HackerNewsPost) {
-    // Clear existing content
+    // Clear existing header content
+    for (const child of this.detailHeader.getChildren()) {
+      this.detailHeader.remove(child.id);
+    }
+
+    // Clear existing scroll content
     for (const child of this.detailContent.getChildren()) {
       this.detailContent.remove(child.id);
     }
     this.rootCommentBoxes = [];
 
-    // Create unified header container
-    const headerContainer = new BoxRenderable(this.ctx, {
-      width: "100%",
-      flexDirection: "column",
-      paddingBottom: 1,
-      marginBottom: 1,
-      borderStyle: "single",
-      border: ["bottom"],
-      borderColor: COLORS.border,
-      backgroundColor: COLORS.bg,
-    });
-
-    // Title (clickable, with word wrap for long titles)
+    // Render title into fixed header (outside scroll)
+    // Title clamped to 2 lines with flexShrink: 0 to prevent interleaving
     const titleText = new TextRenderable(this.ctx, {
       content: post.title,
       fg: COLORS.text,
       wrapMode: "word",
+      flexShrink: 0,
+      maxHeight: 2,
       onMouseDown: () => this.openStoryUrl(),
       onMouseOver: () => {
         (titleText as any).fg = COLORS.link;
@@ -1203,19 +1313,18 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
         (titleText as any).fg = COLORS.text;
       },
     });
-    headerContainer.add(titleText);
+    this.detailHeader.add(titleText);
 
-    // URL (clickable, lighter gray to match sidebar)
+    // Domain (clickable, lighter gray to match sidebar)
     if (post.domain) {
       const urlText = new TextRenderable(this.ctx, {
         content: post.domain,
         fg: COLORS.textDim,
+        flexShrink: 0,
         onMouseDown: () => this.openStoryUrl(),
       });
-      headerContainer.add(urlText);
+      this.detailHeader.add(urlText);
     }
-
-    this.detailContent.add(headerContainer);
 
     // Post content if exists
     if (post.content) {
@@ -1269,7 +1378,29 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
     this.detailScroll.scrollTop = 0;
   }
 
-  private renderComment(comment: HackerNewsComment, rootIndex?: number): BoxRenderable {
+  private renderEmptyDetail() {
+    // Clear existing header content
+    for (const child of this.detailHeader.getChildren()) {
+      this.detailHeader.remove(child.id);
+    }
+
+    // Clear existing scroll content
+    for (const child of this.detailContent.getChildren()) {
+      this.detailContent.remove(child.id);
+    }
+
+    // Show empty state message in header
+    const emptyMessage = new TextRenderable(this.ctx, {
+      content: "Select a story to view details",
+      fg: COLORS.textDim,
+    });
+    this.detailHeader.add(emptyMessage);
+  }
+
+  private renderComment(
+    comment: HackerNewsComment,
+    rootIndex?: number,
+  ): BoxRenderable {
     const isRootComment = comment.level === 0;
 
     // Border colors: root comments are always orange, nested get progressively lighter
@@ -1286,7 +1417,7 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
     const wrapper = new BoxRenderable(this.ctx, {
       id: `comment-wrapper-${comment.id}`,
       width: "100%",
-      marginTop: isRootComment ? 2 : 1,
+      marginTop: 1,
       flexDirection: "row",
     });
 
@@ -1363,6 +1494,20 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
   }
 
   private navigateStory(delta: number) {
+    if (this.posts.length === 0) return;
+
+    // Handle first navigation when no story is selected
+    if (this.selectedIndex === -1) {
+      if (delta > 0) {
+        // j pressed: select first story
+        this.selectStory(0);
+      } else {
+        // k pressed: select last story
+        this.selectStory(this.posts.length - 1);
+      }
+      return;
+    }
+
     const newIndex = this.selectedIndex + delta;
     if (newIndex >= 0 && newIndex < this.posts.length) {
       this.selectStory(newIndex);
@@ -1407,7 +1552,9 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
 
   private openStoryUrl() {
     if (!this.selectedPost) return;
-    const url = this.selectedPost.url || `https://news.ycombinator.com/item?id=${this.selectedPost.id}`;
+    const url =
+      this.selectedPost.url ||
+      `https://news.ycombinator.com/item?id=${this.selectedPost.id}`;
     this.callbacks.onOpenUrl?.(url);
   }
 
@@ -1437,6 +1584,7 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
     this.authSelectedProvider = "anthropic";
 
     // Remove detail view components
+    this.detailPanel.remove(this.detailHeader.id);
     this.detailPanel.remove(this.detailScroll.id);
     this.detailPanel.remove(this.shortcutsBar.id);
 
@@ -1452,6 +1600,7 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
     }
 
     // Re-add detail view components
+    this.detailPanel.add(this.detailHeader);
     this.detailPanel.add(this.detailScroll);
     this.detailPanel.add(this.shortcutsBar);
 
@@ -1504,11 +1653,17 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
       });
       const anthropicDot = new TextRenderable(this.ctx, {
         content: this.authSelectedProvider === "anthropic" ? "●" : "○",
-        fg: this.authSelectedProvider === "anthropic" ? COLORS.accent : COLORS.textDim,
+        fg:
+          this.authSelectedProvider === "anthropic"
+            ? COLORS.accent
+            : COLORS.textDim,
       });
       const anthropicLabel = new TextRenderable(this.ctx, {
         content: "Anthropic",
-        fg: this.authSelectedProvider === "anthropic" ? COLORS.accent : COLORS.text,
+        fg:
+          this.authSelectedProvider === "anthropic"
+            ? COLORS.accent
+            : COLORS.text,
       });
       anthropicBox.add(anthropicDot);
       anthropicBox.add(anthropicLabel);
@@ -1521,11 +1676,15 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
       });
       const openaiDot = new TextRenderable(this.ctx, {
         content: this.authSelectedProvider === "openai" ? "●" : "○",
-        fg: this.authSelectedProvider === "openai" ? COLORS.accent : COLORS.textDim,
+        fg:
+          this.authSelectedProvider === "openai"
+            ? COLORS.accent
+            : COLORS.textDim,
       });
       const openaiLabel = new TextRenderable(this.ctx, {
         content: "OpenAI",
-        fg: this.authSelectedProvider === "openai" ? COLORS.accent : COLORS.text,
+        fg:
+          this.authSelectedProvider === "openai" ? COLORS.accent : COLORS.text,
       });
       openaiBox.add(openaiDot);
       openaiBox.add(openaiLabel);
@@ -1539,10 +1698,10 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
         fg: COLORS.textDim,
       });
       container.add(instructions);
-
     } else if (this.authSetupStep === "key") {
       // API key input
-      const providerName = this.authSelectedProvider === "anthropic" ? "Anthropic" : "OpenAI";
+      const providerName =
+        this.authSelectedProvider === "anthropic" ? "Anthropic" : "OpenAI";
       const prompt = new TextRenderable(this.ctx, {
         content: `Enter your ${providerName} API key:`,
         fg: COLORS.text,
@@ -1567,7 +1726,8 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
       this.authKeyInput = new InputRenderable(this.ctx, {
         width: "100%",
         flexGrow: 1,
-        placeholder: this.authSelectedProvider === "anthropic" ? "sk-ant-..." : "sk-...",
+        placeholder:
+          this.authSelectedProvider === "anthropic" ? "sk-ant-..." : "sk-...",
         backgroundColor: COLORS.bg,
       });
 
@@ -1679,7 +1839,11 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
     this.renderSuggestions();
   }
 
-  private getSettingsItems(): { label: string; action: string; enabled: boolean }[] {
+  private getSettingsItems(): {
+    label: string;
+    action: string;
+    enabled: boolean;
+  }[] {
     const hasAnthropic = !!getApiKey("anthropic");
     const hasOpenAI = !!getApiKey("openai");
 
@@ -1694,8 +1858,10 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
 
     // Model selection for current provider
     const currentModel = getModel(this.chatProvider);
-    const models = this.chatProvider === "anthropic" ? ANTHROPIC_MODELS : OPENAI_MODELS;
-    const modelName = models.find(m => m.id === currentModel)?.name || currentModel;
+    const models =
+      this.chatProvider === "anthropic" ? ANTHROPIC_MODELS : OPENAI_MODELS;
+    const modelName =
+      models.find((m) => m.id === currentModel)?.name || currentModel;
     items.push({
       label: `Model: ${modelName}`,
       action: "change_model",
@@ -1704,15 +1870,27 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
 
     // Add API key
     if (!hasAnthropic) {
-      items.push({ label: "Add Anthropic API key", action: "add_anthropic", enabled: true });
+      items.push({
+        label: "Add Anthropic API key",
+        action: "add_anthropic",
+        enabled: true,
+      });
     }
     if (!hasOpenAI) {
-      items.push({ label: "Add OpenAI API key", action: "add_openai", enabled: true });
+      items.push({
+        label: "Add OpenAI API key",
+        action: "add_openai",
+        enabled: true,
+      });
     }
 
     // Clear tokens
     if (hasAnthropic || hasOpenAI) {
-      items.push({ label: "Clear all API keys", action: "clear_keys", enabled: true });
+      items.push({
+        label: "Clear all API keys",
+        action: "clear_keys",
+        enabled: true,
+      });
     }
 
     return items;
@@ -1761,7 +1939,11 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
 
         const label = new TextRenderable(this.ctx, {
           content: item.label,
-          fg: isSelected ? COLORS.accent : (item.enabled ? COLORS.text : COLORS.textDim),
+          fg: isSelected
+            ? COLORS.accent
+            : item.enabled
+              ? COLORS.text
+              : COLORS.textDim,
         });
         itemBox.add(label);
 
@@ -1775,9 +1957,11 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
         fg: COLORS.textDim,
       });
       container.add(hint);
-
     } else if (this.settingsSection === "model") {
-      const models = this.settingsModelProvider === "anthropic" ? ANTHROPIC_MODELS : OPENAI_MODELS;
+      const models =
+        this.settingsModelProvider === "anthropic"
+          ? ANTHROPIC_MODELS
+          : OPENAI_MODELS;
       const currentModel = getModel(this.settingsModelProvider);
 
       const subtitle = new TextRenderable(this.ctx, {
@@ -1835,11 +2019,17 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
     if (this.settingsSection === "main") {
       maxIndex = this.getSettingsItems().length - 1;
     } else {
-      const models = this.settingsModelProvider === "anthropic" ? ANTHROPIC_MODELS : OPENAI_MODELS;
+      const models =
+        this.settingsModelProvider === "anthropic"
+          ? ANTHROPIC_MODELS
+          : OPENAI_MODELS;
       maxIndex = models.length - 1;
     }
 
-    this.settingsSelectedIndex = Math.max(0, Math.min(maxIndex, this.settingsSelectedIndex + delta));
+    this.settingsSelectedIndex = Math.max(
+      0,
+      Math.min(maxIndex, this.settingsSelectedIndex + delta),
+    );
     this.renderSettings();
   }
 
@@ -1851,7 +2041,8 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
 
       switch (selected.action) {
         case "switch_provider":
-          this.chatProvider = this.chatProvider === "anthropic" ? "openai" : "anthropic";
+          this.chatProvider =
+            this.chatProvider === "anthropic" ? "openai" : "anthropic";
           // Persist the provider preference
           const switchConfig = loadConfig();
           switchConfig.provider = this.chatProvider;
@@ -1896,7 +2087,10 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
           break;
       }
     } else if (this.settingsSection === "model") {
-      const models = this.settingsModelProvider === "anthropic" ? ANTHROPIC_MODELS : OPENAI_MODELS;
+      const models =
+        this.settingsModelProvider === "anthropic"
+          ? ANTHROPIC_MODELS
+          : OPENAI_MODELS;
       const selected = models[this.settingsSelectedIndex];
       if (selected) {
         setModel(this.settingsModelProvider, selected.id);
@@ -1921,13 +2115,20 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
     // Up arrow (delta -1) moves towards top (lower index)
     // Down arrow (delta +1) moves towards bottom (higher index)
     const newIndex = this.selectedSuggestionIndex + delta;
-    this.selectedSuggestionIndex = Math.max(0, Math.min(this.suggestions.length - 1, newIndex));
+    this.selectedSuggestionIndex = Math.max(
+      0,
+      Math.min(this.suggestions.length - 1, newIndex),
+    );
 
     this.renderSuggestions();
   }
 
   private selectSuggestion() {
-    if (this.selectedSuggestionIndex < 0 || this.selectedSuggestionIndex >= this.suggestions.length) return;
+    if (
+      this.selectedSuggestionIndex < 0 ||
+      this.selectedSuggestionIndex >= this.suggestions.length
+    )
+      return;
 
     const suggestion = this.suggestions[this.selectedSuggestionIndex];
     if (!suggestion) return;
@@ -2014,16 +2215,22 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
     // Start loading animation for suggestions
     const suggestionsLoadingInterval = setInterval(() => {
       if (!this.renderer.isDestroyed && this.suggestionsLoading) {
-        this.loadingFrame = (this.loadingFrame + 1) % HackerNewsApp.LOADING_CHARS.length;
+        this.loadingFrame =
+          (this.loadingFrame + 1) % HackerNewsApp.LOADING_CHARS.length;
         this.renderSuggestions();
       }
     }, 80);
 
     // Build context for generating suggestions
     const post = this.selectedPost;
-    const commentsPreview = post.comments?.slice(0, 3).map(c =>
-      `${c.user}: ${this.stripHtml(c.content || "").slice(0, 100)}...`
-    ).join("\n") || "No comments yet";
+    const commentsPreview =
+      post.comments
+        ?.slice(0, 3)
+        .map(
+          (c) =>
+            `${c.user}: ${this.stripHtml(c.content || "").slice(0, 100)}...`,
+        )
+        .join("\n") || "No comments yet";
 
     const prompt = `Based on this Hacker News story, generate 3 short questions (max 10 words each) a reader might want to ask. Return ONLY the 3 questions, one per line, no numbering or bullets.
 
@@ -2054,8 +2261,12 @@ ${commentsPreview}`;
 
         log("[suggestions] Anthropic response received");
         const firstBlock = response.content[0];
-        const text = firstBlock && firstBlock.type === "text" ? firstBlock.text : "";
-        questions = text.split("\n").filter((q: string) => q.trim()).slice(0, 3);
+        const text =
+          firstBlock && firstBlock.type === "text" ? firstBlock.text : "";
+        questions = text
+          .split("\n")
+          .filter((q: string) => q.trim())
+          .slice(0, 3);
       } else {
         log("[suggestions] Using OpenAI API");
         if (!this.openai) {
@@ -2075,9 +2286,15 @@ ${commentsPreview}`;
           messages: [{ role: "user", content: prompt }],
         });
 
-        log("[suggestions] OpenAI response received:", JSON.stringify(response.choices[0], null, 2));
+        log(
+          "[suggestions] OpenAI response received:",
+          JSON.stringify(response.choices[0], null, 2),
+        );
         const text = response.choices[0]?.message?.content || "";
-        questions = text.split("\n").filter((q: string) => q.trim()).slice(0, 3);
+        questions = text
+          .split("\n")
+          .filter((q: string) => q.trim())
+          .slice(0, 3);
       }
 
       log("[suggestions] Generated questions:", questions);
@@ -2100,17 +2317,25 @@ ${commentsPreview}`;
       this.suggestionsLoading = false;
       this.renderSuggestions();
 
-      log("[ERROR]","[suggestions] Error generating suggestions:");
-      log("[ERROR]","[suggestions] Error type:", error?.constructor?.name);
-      log("[ERROR]","[suggestions] Error message:", error instanceof Error ? error.message : String(error));
+      log("[ERROR]", "[suggestions] Error generating suggestions:");
+      log("[ERROR]", "[suggestions] Error type:", error?.constructor?.name);
+      log(
+        "[ERROR]",
+        "[suggestions] Error message:",
+        error instanceof Error ? error.message : String(error),
+      );
       if (error instanceof Error && error.stack) {
-        log("[ERROR]","[suggestions] Stack trace:", error.stack);
+        log("[ERROR]", "[suggestions] Stack trace:", error.stack);
       }
       // Log full error object for debugging
       try {
-        log("[ERROR]","[suggestions] Full error:", JSON.stringify(error, null, 2));
+        log(
+          "[ERROR]",
+          "[suggestions] Full error:",
+          JSON.stringify(error, null, 2),
+        );
       } catch {
-        log("[ERROR]","[suggestions] Full error (non-JSON):", error);
+        log("[ERROR]", "[suggestions] Full error (non-JSON):", error);
       }
     }
   }
@@ -2125,29 +2350,31 @@ ${commentsPreview}`;
   }
 
   private stripHtml(html: string): string {
-    return html
-      // Handle paragraphs - add double newline between them
-      .replace(/<\/p>\s*<p>/g, "\n\n")
-      .replace(/<p>/g, "")
-      .replace(/<\/p>/g, "\n\n")
-      .replace(/<br\s*\/?>/g, "\n")
-      .replace(/<a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/g, "$2 ($1)")
-      .replace(/<code>/g, "`")
-      .replace(/<\/code>/g, "`")
-      .replace(/<pre>/g, "\n```\n")
-      .replace(/<\/pre>/g, "\n```\n")
-      .replace(/<[^>]+>/g, "")
-      .replace(/&amp;/g, "&")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&quot;/g, '"')
-      .replace(/&#x27;/g, "'")
-      .replace(/&#x2F;/g, "/")
-      .replace(/&#39;/g, "'")
-      .replace(/&nbsp;/g, " ")
-      // Normalize multiple newlines to max 2
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
+    return (
+      html
+        // Handle paragraphs - add double newline between them
+        .replace(/<\/p>\s*<p>/g, "\n\n")
+        .replace(/<p>/g, "")
+        .replace(/<\/p>/g, "\n\n")
+        .replace(/<br\s*\/?>/g, "\n")
+        .replace(/<a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/g, "$2 ($1)")
+        .replace(/<code>/g, "`")
+        .replace(/<\/code>/g, "`")
+        .replace(/<pre>/g, "\n```\n")
+        .replace(/<\/pre>/g, "\n```\n")
+        .replace(/<[^>]+>/g, "")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&#x27;/g, "'")
+        .replace(/&#x2F;/g, "/")
+        .replace(/&#39;/g, "'")
+        .replace(/&nbsp;/g, " ")
+        // Normalize multiple newlines to max 2
+        .replace(/\n{3,}/g, "\n\n")
+        .trim()
+    );
   }
 
   // Public getters for testing

@@ -17,6 +17,8 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@opentui/core": "^0.1.75"
+    "@anthropic-ai/sdk": "^0.71.2",
+    "@opentui/core": "^0.1.75",
+    "openai": "^6.16.0"
   }
 }

@@ -47,21 +47,43 @@ describe("HackerNewsApp", () => {
       await renderOnce();
     });
 
-    it("should start with first story selected", () => {
+    it("should start with no story selected", () => {
+      expect(app.currentSelectedIndex).toBe(-1);
+    });
+
+    it("should select first story when j is pressed with no selection", async () => {
+      expect(app.currentSelectedIndex).toBe(-1);
+      mockInput.pressKey("j");
+      await renderOnce();
       expect(app.currentSelectedIndex).toBe(0);
     });
 
-    it("should navigate down with j key", async () => {
-      expect(app.currentSelectedIndex).toBe(0);
+    it("should select last story when k is pressed with no selection", async () => {
+      expect(app.currentSelectedIndex).toBe(-1);
+      mockInput.pressKey("k");
+      await renderOnce();
+      expect(app.currentSelectedIndex).toBe(9); // 10 posts, last index is 9
+    });
 
+    it("should navigate down with j key", async () => {
+      // First j selects first story (from -1 to 0)
       mockInput.pressKey("j");
       await renderOnce();
+      expect(app.currentSelectedIndex).toBe(0);
 
+      // Second j navigates to next story
+      mockInput.pressKey("j");
+      await renderOnce();
       expect(app.currentSelectedIndex).toBe(1);
     });
 
     it("should navigate up with k key", async () => {
-      // First go down
+      // First select a story
+      mockInput.pressKey("j");
+      await renderOnce();
+      expect(app.currentSelectedIndex).toBe(0);
+
+      // Go down once more
       mockInput.pressKey("j");
       await renderOnce();
       expect(app.currentSelectedIndex).toBe(1);
@@ -69,25 +91,29 @@ describe("HackerNewsApp", () => {
       // Then go up
       mockInput.pressKey("k");
       await renderOnce();
-
       expect(app.currentSelectedIndex).toBe(0);
     });
 
-    it("should not go below first story", async () => {
+    it("should not go above first story when at first story", async () => {
+      // First select a story
+      mockInput.pressKey("j");
+      await renderOnce();
+      expect(app.currentSelectedIndex).toBe(0);
+
+      // Try to go up from first story
       mockInput.pressKey("k");
       await renderOnce();
-
       expect(app.currentSelectedIndex).toBe(0);
     });
 
-    it("should not go above last story", async () => {
-      // Navigate to last story
+    it("should not go below last story", async () => {
+      // First select a story then navigate to last story
       for (let i = 0; i < 15; i++) {
         mockInput.pressKey("j");
         await renderOnce();
       }
 
-      // Should be at last story (index 9)
+      // Should be at last story (index 9) - first j goes from -1 to 0, then 9 more to reach 9
       expect(app.currentSelectedIndex).toBe(9);
 
       // Try to go further
@@ -98,10 +124,16 @@ describe("HackerNewsApp", () => {
     });
 
     it("should navigate multiple stories in sequence", async () => {
+      // First j selects first story (from -1 to 0)
       mockInput.pressKey("j");
       await renderOnce();
+      // Second j goes to 1
       mockInput.pressKey("j");
       await renderOnce();
+      // Third j goes to 2
+      mockInput.pressKey("j");
+      await renderOnce();
+      // Fourth j goes to 3
       mockInput.pressKey("j");
       await renderOnce();
 
@@ -197,7 +229,7 @@ describe("HackerNewsApp", () => {
     });
 
     it("should select story on click", async () => {
-      expect(app.currentSelectedIndex).toBe(0);
+      expect(app.currentSelectedIndex).toBe(-1);
 
       // Click on third story (approximate Y position based on layout)
       // Stories start after header (height 3), each story is ~2 lines
@@ -205,19 +237,19 @@ describe("HackerNewsApp", () => {
       await mockMouse.click(10, storyY);
       await renderOnce();
 
-      // The click should have selected a different story
-      // Exact index depends on hit testing, but it shouldn't be 0
+      // The click should have selected a story
+      // Exact index depends on hit testing
       expect(app.currentSelectedIndex).toBeGreaterThanOrEqual(0);
     });
   });
 
   describe("UI Rendering", () => {
-    it("should render header with briOS HN title", async () => {
+    it("should render header with Hacker News title", async () => {
       app.setPostsForTesting(createMockPosts(5));
       await renderOnce();
 
       const frame = captureCharFrame();
-      expect(frame).toContain("briOS HN");
+      expect(frame).toContain("Hacker News");
     });
 
     it("should render story titles", async () => {
