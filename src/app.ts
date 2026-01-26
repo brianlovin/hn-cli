@@ -32,6 +32,7 @@ import {
   updateStorySelection,
   scrollToStory,
   updateStoryIndicator,
+  showStoryListNotification,
   type StoryListState,
 } from "./components/StoryList";
 import {
@@ -114,6 +115,10 @@ export interface AppCallbacks {
   onExit?: () => void;
 }
 
+export interface InitializeOptions {
+  requestedStoryId?: number;
+}
+
 export class HackerNewsApp {
   private renderer: CliRenderer;
   private ctx: RenderContext;
@@ -178,6 +183,9 @@ export class HackerNewsApp {
   private aiIndicatorFrame = 0;
   private aiIndicatorInterval: ReturnType<typeof setInterval> | null = null;
 
+  // Requested story ID from command line flag
+  private requestedStoryId: number | undefined;
+
   constructor(renderer: CliRenderer, callbacks: AppCallbacks = {}) {
     this.renderer = renderer;
     this.ctx = renderer;
@@ -200,10 +208,18 @@ export class HackerNewsApp {
     saveCache(cache);
   }
 
-  async initialize() {
+  async initialize(options: InitializeOptions = {}) {
+    this.requestedStoryId = options.requestedStoryId;
+
     await detectTheme(this.renderer);
     this.setupLayout();
     this.setupKeyboardHandlers();
+
+    // If a specific story is requested, skip cache and load fresh
+    if (this.requestedStoryId) {
+      await this.loadPosts();
+      return;
+    }
 
     // Try to restore from cache first
     const cached = loadCache();
@@ -645,6 +661,16 @@ export class HackerNewsApp {
     try {
       this.posts = await getRankedPosts();
       this.storiesFetchedAt = Date.now();
+
+      // Handle requested story ID from command line flag
+      let initialStoryIndex = 0;
+      let storyNotFound = false;
+      if (this.requestedStoryId) {
+        const result = await this.handleRequestedStory();
+        initialStoryIndex = result.index;
+        storyNotFound = !result.found;
+      }
+
       stopEmptyStateAnimation(this.emptyStateState);
 
       // Remove loading state and add the main layout
@@ -659,15 +685,44 @@ export class HackerNewsApp {
         onSelect: (index) => this.selectStory(index),
       });
 
-      // Auto-select first story if we have posts
+      // Show notification if requested story was not found
+      if (storyNotFound) {
+        showStoryListNotification(
+          this.storyListState,
+          `Story ${this.requestedStoryId} not found`,
+        );
+      }
+
+      // Auto-select story (requested story index or first story)
       if (this.posts.length > 0) {
-        await this.selectStory(0);
+        await this.selectStory(initialStoryIndex);
       }
 
       this.saveToCache();
     } catch (error) {
       stopEmptyStateAnimation(this.emptyStateState);
       log("[ERROR]", "Error loading posts:", error);
+    }
+  }
+
+  private async handleRequestedStory(): Promise<{ index: number; found: boolean }> {
+    if (!this.requestedStoryId) return { index: 0, found: true };
+
+    // Check if the requested story is already in the posts list
+    const existingIndex = this.posts.findIndex((p) => p.id === this.requestedStoryId);
+
+    if (existingIndex !== -1) {
+      // Story exists in list - keep it in place, return its index
+      return { index: existingIndex, found: true };
+    } else {
+      // Story not in list - fetch it and prepend to index 0
+      const requestedPost = await getPostById(this.requestedStoryId);
+      if (requestedPost) {
+        this.posts.unshift(requestedPost);
+        return { index: 0, found: true };
+      }
+      // Story could not be fetched
+      return { index: 0, found: false };
     }
   }
 

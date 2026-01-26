@@ -1,6 +1,7 @@
 import {
   BoxRenderable,
   ScrollBoxRenderable,
+  TextRenderable,
   type RenderContext,
 } from "@opentui/core";
 import type { HackerNewsPost } from "../types";
@@ -18,6 +19,7 @@ export interface StoryListState {
   scroll: ScrollBoxRenderable;
   shortcutsBar: BoxRenderable;
   items: Map<number, BoxRenderable>;
+  notificationBox: BoxRenderable;
 }
 
 export function createStoryList(ctx: RenderContext): StoryListState {
@@ -50,6 +52,28 @@ export function createStoryList(ctx: RenderContext): StoryListState {
   // Shortcuts bar at the bottom of the story list
   const shortcutsBar = createShortcutsBar(ctx, STORY_LIST_SHORTCUTS);
 
+  // Notification box (hidden by default - inserted into scroll area to get gap styling)
+  const notificationBox = new BoxRenderable(ctx, {
+    id: "story-list-notification-box",
+    width: "100%",
+    flexDirection: "row",
+  });
+  // Icon to match story item keyline
+  const notificationIcon = new TextRenderable(ctx, {
+    id: "story-list-notification-icon",
+    content: "?",
+    fg: COLORS.textTertiary,
+    width: 2,
+    paddingLeft: 1,
+  });
+  const notificationText = new TextRenderable(ctx, {
+    id: "story-list-notification-text",
+    content: "",
+    fg: COLORS.textSecondary,
+  });
+  notificationBox.add(notificationIcon);
+  notificationBox.add(notificationText);
+
   panel.add(scroll);
   panel.add(shortcutsBar);
 
@@ -58,7 +82,38 @@ export function createStoryList(ctx: RenderContext): StoryListState {
     scroll,
     shortcutsBar,
     items: new Map(),
+    notificationBox,
   };
+}
+
+export function showStoryListNotification(
+  state: StoryListState,
+  message: string,
+): void {
+  // Update the notification text
+  const textChild = state.notificationBox.getChildren()[1] as TextRenderable;
+  if (textChild) {
+    textChild.content = message;
+  }
+
+  // Add notification box to scroll area if not already present (at the top)
+  const children = state.scroll.getChildren();
+  const hasNotification = children.some((child) => child.id === state.notificationBox.id);
+  if (!hasNotification) {
+    // Remove all items, add notification first, then re-add items
+    const items = children.filter((child) => child.id !== state.notificationBox.id);
+    for (const item of items) {
+      state.scroll.remove(item.id);
+    }
+    state.scroll.add(state.notificationBox);
+    for (const item of items) {
+      state.scroll.add(item);
+    }
+  }
+}
+
+export function hideStoryListNotification(state: StoryListState): void {
+  state.scroll.remove(state.notificationBox.id);
 }
 
 export function renderStoryList(
@@ -68,9 +123,11 @@ export function renderStoryList(
   selectedIndex: number,
   callbacks: StoryItemCallbacks,
 ): void {
-  // Clear existing items
+  // Clear existing items (but preserve notification if present)
   for (const child of state.scroll.getChildren()) {
-    state.scroll.remove(child.id);
+    if (child.id !== state.notificationBox.id) {
+      state.scroll.remove(child.id);
+    }
   }
   state.items.clear();
 
