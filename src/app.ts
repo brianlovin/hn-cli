@@ -26,6 +26,7 @@ import {
   ANTHROPIC_MODELS,
   OPENAI_MODELS,
 } from "./config";
+import { type UpdateInfo, getUpdateCommand } from "./version";
 
 interface ChatMessage {
   role: "user" | "assistant";
@@ -156,6 +157,9 @@ export class HackerNewsApp {
   private suggestionsLoading = false;
   private suggestionsContainer: BoxRenderable | null = null;
 
+  // Update notification state
+  private updateInfo: UpdateInfo | null = null;
+
   // Follow-up questions state
   private followUpCount = 0;
   private static readonly MAX_FOLLOW_UP_ROUNDS = 3;
@@ -193,6 +197,18 @@ export class HackerNewsApp {
       }
     } catch {
       // If detection fails, keep dark theme (default)
+    }
+  }
+
+  /**
+   * Set update info from background version check.
+   * Re-renders empty state if no story is selected.
+   */
+  setUpdateInfo(info: UpdateInfo) {
+    this.updateInfo = info;
+    // Re-render empty state if no story is selected
+    if (this.selectedIndex === -1 && !this.chatMode && !this.authSetupMode && !this.settingsMode) {
+      this.renderEmptyDetail();
     }
   }
 
@@ -1447,6 +1463,29 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
       fg: COLORS.textDim,
     });
     this.detailHeader.add(emptyMessage);
+
+    // Show update notification if available
+    if (this.updateInfo?.hasUpdate) {
+      const updateContainer = new BoxRenderable(this.ctx, {
+        width: "100%",
+        flexDirection: "column",
+        paddingTop: 2,
+      });
+
+      const updateMessage = new TextRenderable(this.ctx, {
+        content: `Update available: v${this.updateInfo.currentVersion} → v${this.updateInfo.latestVersion}`,
+        fg: COLORS.accent,
+      });
+      updateContainer.add(updateMessage);
+
+      const updateCommand = new TextRenderable(this.ctx, {
+        content: getUpdateCommand(),
+        fg: COLORS.textDim,
+      });
+      updateContainer.add(updateCommand);
+
+      this.detailContent.add(updateContainer);
+    }
   }
 
   private renderComment(
