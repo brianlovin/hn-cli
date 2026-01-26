@@ -237,7 +237,7 @@ export class HackerNewsApp {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      paddingLeft: 2,
+      paddingLeft: 1,
       paddingRight: 2,
       backgroundColor: COLORS.bg,
       borderStyle: "single",
@@ -245,11 +245,28 @@ export class HackerNewsApp {
       borderColor: COLORS.border,
     });
 
+    // Left side container with icon + title (aligned with story list)
+    const leftContainer = new BoxRenderable(this.ctx, {
+      flexDirection: "row",
+      alignItems: "center",
+    });
+
+    // Delta icon (matches chevron indicator layout)
+    const icon = new TextRenderable(this.ctx, {
+      content: "∆",
+      fg: COLORS.accent,
+      width: 2,
+      paddingLeft: 1,
+    });
+    leftContainer.add(icon);
+
     const title = new TextRenderable(this.ctx, {
       content: "Hacker News",
       fg: COLORS.accent,
     });
-    header.add(title);
+    leftContainer.add(title);
+
+    header.add(leftContainer);
 
     // Right side container with loading indicator + GitHub link
     const rightContainer = new BoxRenderable(this.ctx, {
@@ -1236,7 +1253,7 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
     // Chevron indicator column
     const chevronIndicator = new TextRenderable(this.ctx, {
       id: `chevron-${post.id}`,
-      content: isSelected ? "›" : " ",
+      content: isSelected ? "›" : "•",
       fg: isSelected ? COLORS.accent : COLORS.textVeryDim,
       width: 2,
       paddingLeft: 1,
@@ -1334,7 +1351,7 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
       // Update chevron indicator
       const chevronIndicator = children[0] as TextRenderable;
       if (chevronIndicator && "content" in chevronIndicator) {
-        chevronIndicator.content = isSelected ? "›" : " ";
+        chevronIndicator.content = isSelected ? "›" : "•";
         (chevronIndicator as any).fg = isSelected
           ? COLORS.accent
           : COLORS.textVeryDim;
