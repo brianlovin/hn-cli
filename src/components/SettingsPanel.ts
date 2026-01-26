@@ -9,6 +9,17 @@ import {
   OPENAI_MODELS,
 } from "../config";
 
+const PROVIDER_API_KEY_URLS: Record<Provider, { display: string; full: string }> = {
+  anthropic: {
+    display: "platform.claude.com",
+    full: "https://platform.claude.com/settings/keys",
+  },
+  openai: {
+    display: "platform.openai.com",
+    full: "https://platform.openai.com/api-keys",
+  },
+};
+
 type SettingsItemType =
   | { type: "provider"; provider: Provider; hasKey: boolean }
   | { type: "model"; modelId: string; modelName: string }
@@ -147,8 +158,8 @@ export function renderSettings(
 
     if (!hasKey) {
       const hint = new TextRenderable(ctx, {
-        content: "Add API Key",
-        fg: COLORS.textSecondary,
+        content: `${PROVIDER_API_KEY_URLS[listItem.item.provider].display} (tab)`,
+        fg: COLORS.textTertiary,
       });
       itemBox.add(hint);
     }
@@ -358,4 +369,23 @@ export function selectSettingsItem(
 
 export function goBackInSettings(_state: SettingsState): boolean {
   return false; // Always exit settings on Esc
+}
+
+/**
+ * Returns the API key URL for the currently selected provider if it doesn't have a key.
+ * Returns null if the selection is not a provider or if the provider already has a key.
+ */
+export function getSelectedProviderUrl(
+  state: SettingsState,
+  chatProvider: Provider,
+): string | null {
+  const items = getSettingsList(chatProvider);
+  const selected = items[state.selectedIndex];
+  if (!selected) return null;
+
+  if (selected.item.type === "provider" && !selected.item.hasKey) {
+    return PROVIDER_API_KEY_URLS[selected.item.provider].full;
+  }
+
+  return null;
 }

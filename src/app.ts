@@ -71,6 +71,7 @@ import {
   navigateSettings,
   selectSettingsItem,
   goBackInSettings,
+  getSelectedProviderUrl,
   type SettingsState,
 } from "./components/SettingsPanel";
 
@@ -366,6 +367,15 @@ export class HackerNewsApp {
     } else if (key.name === "k" || key.name === "up") {
       navigateSettings(this.settingsState, -1, getConfiguredProvider() || "anthropic");
       this.rerenderSettings();
+    } else if (key.name === "tab") {
+      // Open API key URL if a provider without a key is selected
+      const url = getSelectedProviderUrl(
+        this.settingsState,
+        getConfiguredProvider() || "anthropic",
+      );
+      if (url) {
+        this.callbacks.onOpenUrl?.(url);
+      }
     } else if (key.name === "return" || key.name === "enter") {
       const action = selectSettingsItem(
         this.settingsState,

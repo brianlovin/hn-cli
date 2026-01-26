@@ -1,4 +1,6 @@
 import { describe, it, expect } from "bun:test";
+import { getSelectedProviderUrl, initSettingsState, type SettingsState } from "../components/SettingsPanel";
+import { getApiKey } from "../config";
 
 // NOTE: Settings Mode rendering tests are skipped due to a pre-existing Yoga layout engine crash
 // in the OpenTUI test framework. The settings action logic is tested by directly calling
@@ -287,5 +289,63 @@ describe("Auth Setup State Management", () => {
 
     expect(inputBlurred).toBe(true);
     expect(mockState.keyInput).toBeNull();
+  });
+});
+
+describe("Provider API Key URLs", () => {
+  it("should return correct Anthropic URL when Anthropic has no key and is selected", () => {
+    // Only test if Anthropic doesn't have a key configured
+    if (getApiKey("anthropic")) return;
+
+    const state = initSettingsState();
+    state.selectedIndex = 0; // Anthropic is first in the list
+
+    const url = getSelectedProviderUrl(state, "anthropic");
+    expect(url).toBe("https://platform.claude.com/settings/keys");
+  });
+
+  it("should return correct OpenAI URL when OpenAI has no key and is selected", () => {
+    // Only test if OpenAI doesn't have a key configured
+    if (getApiKey("openai")) return;
+
+    const state = initSettingsState();
+    state.selectedIndex = 1; // OpenAI is second in the list
+
+    const url = getSelectedProviderUrl(state, "anthropic");
+    expect(url).toBe("https://platform.openai.com/api-keys");
+  });
+
+  it("should return null when selection is not a provider (action item)", () => {
+    const state = initSettingsState();
+    // Done action is at index 2 when no keys are configured
+    state.selectedIndex = 2;
+
+    const url = getSelectedProviderUrl(state, "anthropic");
+    expect(url).toBeNull();
+  });
+
+  it("should return null when selected index is out of bounds", () => {
+    const state = initSettingsState();
+    state.selectedIndex = 999;
+
+    const url = getSelectedProviderUrl(state, "anthropic");
+    expect(url).toBeNull();
+  });
+
+  it("should return null when provider has a key configured", () => {
+    // This test verifies the behavior when a provider already has a key
+    // We can't easily mock this, but we can verify the function exists
+    // and handles the case based on real config state
+    const state = initSettingsState();
+    state.selectedIndex = 0;
+
+    const url = getSelectedProviderUrl(state, "anthropic");
+
+    // If Anthropic has a key, URL should be null; otherwise it should be the Anthropic URL
+    if (getApiKey("anthropic")) {
+      expect(url).toBeNull();
+    } else {
+      expect(url).toBe("https://platform.claude.com/settings/keys");
+    }
   });
 });
