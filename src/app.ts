@@ -148,7 +148,10 @@ export class HackerNewsApp {
 
   // Follow-up questions state
   private followUpCount = 0;
-  private isGeneratingFollowUps = false;
+  // Track pending generation per story ID (not globally)
+  private pendingGenerationStoryIds: Set<number> = new Set();
+  // Track loading intervals so we can cancel them when switching stories
+  private suggestionLoadingInterval: ReturnType<typeof setInterval> | null = null;
 
   // Cache timestamp for when stories were fetched
   private storiesFetchedAt = 0;
@@ -629,6 +632,8 @@ export class HackerNewsApp {
         originalSuggestions: [...this.chatPanelState.suggestions.originalSuggestions],
         followUpCount: this.followUpCount,
       });
+      // Cancel any pending loading interval
+      this.cancelSuggestionLoadingInterval();
       // Blur and cleanup current chat
       if (this.chatPanelState.input) {
         this.chatPanelState.input.blur();
@@ -720,17 +725,12 @@ export class HackerNewsApp {
     const savedSession = this.savedChatSessions.get(this.selectedPost.id);
 
     if (savedSession) {
-      // Restore the saved session (messages only, regenerate suggestions)
+      // Restore the saved session
       this.followUpCount = savedSession.followUpCount;
       this.chatPanelState.messages = [...savedSession.messages];
 
       // Re-render restored messages
       renderChatMessages(this.ctx, this.chatPanelState, this.chatServiceState.provider);
-
-      // Always regenerate suggestions fresh
-      this.chatPanelState.suggestions.loading = true;
-      renderSuggestions(this.ctx, this.chatPanelState.suggestions);
-      this.generateFollowUpQuestionsIfNeeded();
     } else {
       // Fresh session - add initial assistant message
       this.followUpCount = 0;
@@ -741,12 +741,10 @@ export class HackerNewsApp {
         `Ask me anything about "${this.selectedPost.title}" or the discussion about it on Hacker News...`,
         this.chatServiceState.provider,
       );
-
-      // Show loading state and generate dynamic suggestions
-      this.chatPanelState.suggestions.loading = true;
-      renderSuggestions(this.ctx, this.chatPanelState.suggestions);
-      this.generateInitialSuggestions();
     }
+
+    // Restore or generate suggestions
+    this.restoreSuggestionsFromSession(savedSession);
   }
 
   private navigateToNextComment() {
@@ -818,17 +816,12 @@ export class HackerNewsApp {
     const savedSession = this.savedChatSessions.get(this.selectedPost.id);
 
     if (savedSession) {
-      // Restore the saved session (messages only, regenerate suggestions)
+      // Restore the saved session
       this.followUpCount = savedSession.followUpCount;
       this.chatPanelState.messages = [...savedSession.messages];
 
       // Re-render restored messages
       renderChatMessages(this.ctx, this.chatPanelState, this.chatServiceState.provider);
-
-      // Always regenerate suggestions fresh
-      this.chatPanelState.suggestions.loading = true;
-      renderSuggestions(this.ctx, this.chatPanelState.suggestions);
-      this.generateFollowUpQuestionsIfNeeded();
     } else {
       // Fresh session - add initial assistant message
       this.followUpCount = 0;
@@ -839,12 +832,10 @@ export class HackerNewsApp {
         `Ask me anything about "${this.selectedPost.title}" or the discussion about it on Hacker News...`,
         this.chatServiceState.provider,
       );
-
-      // Show loading state and generate dynamic suggestions
-      this.chatPanelState.suggestions.loading = true;
-      renderSuggestions(this.ctx, this.chatPanelState.suggestions);
-      this.generateInitialSuggestions();
     }
+
+    // Restore or generate suggestions
+    this.restoreSuggestionsFromSession(savedSession);
 
     this.saveToCache();
   }
@@ -858,6 +849,9 @@ export class HackerNewsApp {
     if (this.selectedPost) {
       this.storyViewModes.set(this.selectedPost.id, "comments");
     }
+
+    // Cancel any pending loading interval
+    this.cancelSuggestionLoadingInterval();
 
     // Save the chat session for this story before clearing
     if (this.selectedPost && this.chatPanelState) {
@@ -992,58 +986,131 @@ export class HackerNewsApp {
     this.sendChatMessage();
   }
 
+  private cancelSuggestionLoadingInterval() {
+    if (this.suggestionLoadingInterval) {
+      clearInterval(this.suggestionLoadingInterval);
+      this.suggestionLoadingInterval = null;
+    }
+  }
+
+  /**
+   * Restores suggestions from a saved session or generates new ones.
+   * Handles three cases:
+   * 1. Saved session with suggestions → restore them
+   * 2. Saved session with messages but no suggestions → generate follow-ups
+   * 3. No saved session → generate initial suggestions
+   */
+  private restoreSuggestionsFromSession(savedSession: SavedChatSession | undefined) {
+    if (!this.chatPanelState) return;
+
+    if (savedSession && savedSession.suggestions.length > 0) {
+      // Restore saved suggestions (no regeneration needed)
+      this.chatPanelState.suggestions.suggestions = [...savedSession.suggestions];
+      this.chatPanelState.suggestions.originalSuggestions = [...savedSession.originalSuggestions];
+      this.chatPanelState.suggestions.selectedIndex = savedSession.suggestions.length - 1;
+      this.chatPanelState.suggestions.loading = false;
+      renderSuggestions(this.ctx, this.chatPanelState.suggestions);
+    } else if (savedSession && savedSession.messages.length > 0) {
+      // Has conversation history but no saved suggestions - generate follow-up suggestions
+      this.chatPanelState.suggestions.loading = true;
+      renderSuggestions(this.ctx, this.chatPanelState.suggestions);
+      this.generateFollowUpQuestionsIfNeeded();
+    } else {
+      // No conversation - generate initial suggestions
+      this.chatPanelState.suggestions.loading = true;
+      renderSuggestions(this.ctx, this.chatPanelState.suggestions);
+      this.generateInitialSuggestions();
+    }
+  }
+
   private async generateInitialSuggestions() {
     if (!this.selectedPost || !this.chatPanelState || !this.chatServiceState) return;
 
+    const storyId = this.selectedPost.id;
     const suggestionsState = this.chatPanelState.suggestions;
 
+    // Mark this story as having pending generation
+    this.pendingGenerationStoryIds.add(storyId);
+
+    // Cancel any previous loading interval
+    this.cancelSuggestionLoadingInterval();
+
     // Start loading animation
-    const loadingInterval = setInterval(() => {
-      if (!this.renderer.isDestroyed && suggestionsState.loading) {
-        suggestionsState.loadingFrame =
-          (suggestionsState.loadingFrame + 1) % LOADING_CHARS.length;
-        renderSuggestions(this.ctx, suggestionsState);
+    this.suggestionLoadingInterval = setInterval(() => {
+      // Check if we're still on the same story and panel is active
+      if (
+        !this.renderer.isDestroyed &&
+        this.chatPanelState?.isActive &&
+        this.selectedPost?.id === storyId &&
+        this.chatPanelState.suggestions.loading
+      ) {
+        this.chatPanelState.suggestions.loadingFrame =
+          (this.chatPanelState.suggestions.loadingFrame + 1) % LOADING_CHARS.length;
+        renderSuggestions(this.ctx, this.chatPanelState.suggestions);
       }
     }, 80);
 
     try {
       const questions = await generateSuggestions(this.chatServiceState, this.selectedPost);
 
-      clearInterval(loadingInterval);
-      suggestionsState.loading = false;
+      this.cancelSuggestionLoadingInterval();
+      this.pendingGenerationStoryIds.delete(storyId);
 
-      if (questions.length > 0) {
-        suggestionsState.suggestions = questions;
-        suggestionsState.originalSuggestions = [...questions];
-        suggestionsState.selectedIndex = questions.length - 1;
+      // Only update if still on the same story
+      if (this.selectedPost?.id === storyId && this.chatPanelState?.isActive) {
+        this.chatPanelState.suggestions.loading = false;
+
+        if (questions.length > 0) {
+          this.chatPanelState.suggestions.suggestions = questions;
+          this.chatPanelState.suggestions.originalSuggestions = [...questions];
+          this.chatPanelState.suggestions.selectedIndex = questions.length - 1;
+        }
+        renderSuggestions(this.ctx, this.chatPanelState.suggestions);
       }
-      renderSuggestions(this.ctx, suggestionsState);
     } catch (error) {
-      clearInterval(loadingInterval);
-      suggestionsState.loading = false;
-      renderSuggestions(this.ctx, suggestionsState);
+      this.cancelSuggestionLoadingInterval();
+      this.pendingGenerationStoryIds.delete(storyId);
+
+      // Only update if still on the same story
+      if (this.selectedPost?.id === storyId && this.chatPanelState?.isActive) {
+        this.chatPanelState.suggestions.loading = false;
+        renderSuggestions(this.ctx, this.chatPanelState.suggestions);
+      }
       log("[ERROR]", "[suggestions] Error:", error);
     }
   }
 
   private async generateFollowUpQuestionsIfNeeded() {
     if (this.followUpCount >= MAX_FOLLOW_UP_ROUNDS) return;
-    if (this.isGeneratingFollowUps) return;
     if (!this.chatPanelState || !this.chatServiceState || !this.selectedPost) return;
+
+    const storyId = this.selectedPost.id;
+
+    // Check if already generating for this story
+    if (this.pendingGenerationStoryIds.has(storyId)) return;
 
     const hasAssistantMessage = this.chatPanelState.messages.some((m) => m.role === "assistant");
     if (!hasAssistantMessage) return;
 
-    this.isGeneratingFollowUps = true;
-    const suggestionsState = this.chatPanelState.suggestions;
-    suggestionsState.loading = true;
-    renderSuggestions(this.ctx, suggestionsState);
+    // Mark this story as having pending generation
+    this.pendingGenerationStoryIds.add(storyId);
+    this.chatPanelState.suggestions.loading = true;
+    renderSuggestions(this.ctx, this.chatPanelState.suggestions);
 
-    const loadingInterval = setInterval(() => {
-      if (!this.renderer.isDestroyed && suggestionsState.loading) {
-        suggestionsState.loadingFrame =
-          (suggestionsState.loadingFrame + 1) % LOADING_CHARS.length;
-        renderSuggestions(this.ctx, suggestionsState);
+    // Cancel any previous loading interval
+    this.cancelSuggestionLoadingInterval();
+
+    this.suggestionLoadingInterval = setInterval(() => {
+      // Check if we're still on the same story and panel is active
+      if (
+        !this.renderer.isDestroyed &&
+        this.chatPanelState?.isActive &&
+        this.selectedPost?.id === storyId &&
+        this.chatPanelState.suggestions.loading
+      ) {
+        this.chatPanelState.suggestions.loadingFrame =
+          (this.chatPanelState.suggestions.loadingFrame + 1) % LOADING_CHARS.length;
+        renderSuggestions(this.ctx, this.chatPanelState.suggestions);
       }
     }, 80);
 
@@ -1054,25 +1121,34 @@ export class HackerNewsApp {
         this.chatPanelState.messages,
       );
 
-      clearInterval(loadingInterval);
-      suggestionsState.loading = false;
+      this.cancelSuggestionLoadingInterval();
+      this.pendingGenerationStoryIds.delete(storyId);
 
-      if (questions.length > 0) {
-        suggestionsState.suggestions = questions;
-        suggestionsState.originalSuggestions = [...questions];
-        suggestionsState.selectedIndex = questions.length - 1;
-        this.followUpCount++;
+      // Only update if still on the same story
+      if (this.selectedPost?.id === storyId && this.chatPanelState?.isActive) {
+        this.chatPanelState.suggestions.loading = false;
+
+        if (questions.length > 0) {
+          this.chatPanelState.suggestions.suggestions = questions;
+          this.chatPanelState.suggestions.originalSuggestions = [...questions];
+          this.chatPanelState.suggestions.selectedIndex = questions.length - 1;
+          this.followUpCount++;
+        }
+
+        renderSuggestions(this.ctx, this.chatPanelState.suggestions);
+        scrollChatToBottom(this.chatPanelState);
       }
-
-      renderSuggestions(this.ctx, suggestionsState);
-      scrollChatToBottom(this.chatPanelState);
     } catch (error) {
-      clearInterval(loadingInterval);
-      suggestionsState.loading = false;
-      renderSuggestions(this.ctx, suggestionsState);
+      this.cancelSuggestionLoadingInterval();
+      this.pendingGenerationStoryIds.delete(storyId);
+
+      // Only update if still on the same story
+      if (this.selectedPost?.id === storyId && this.chatPanelState?.isActive) {
+        this.chatPanelState.suggestions.loading = false;
+        renderSuggestions(this.ctx, this.chatPanelState.suggestions);
+      }
       log("[ERROR]", "[follow-up] Error:", error);
     } finally {
-      this.isGeneratingFollowUps = false;
       this.saveToCache();
     }
   }
@@ -1155,6 +1231,9 @@ export class HackerNewsApp {
     this.settingsMode = true;
     this.settingsState = initSettingsState();
 
+    // Cancel any pending loading interval
+    this.cancelSuggestionLoadingInterval();
+
     // Blur the chat input to remove cursor
     if (this.chatPanelState?.input) {
       this.chatPanelState.input.blur();
@@ -1224,16 +1303,8 @@ export class HackerNewsApp {
       // Render messages
       renderChatMessages(this.ctx, this.chatPanelState, this.chatServiceState.provider);
 
-      // Always regenerate suggestions when showing chat panel
-      this.chatPanelState.suggestions.loading = true;
-      renderSuggestions(this.ctx, this.chatPanelState.suggestions);
-      if (savedSession && savedSession.messages.length > 0) {
-        // Has conversation history - generate follow-up suggestions
-        this.generateFollowUpQuestionsIfNeeded();
-      } else {
-        // No conversation - generate initial suggestions
-        this.generateInitialSuggestions();
-      }
+      // Restore or generate suggestions
+      this.restoreSuggestionsFromSession(savedSession);
     }
 
     this.settingsState = null;
