@@ -41,9 +41,19 @@ bun run start
 - Click on stories in the sidebar to select them
 - Click story title/URL to open in browser
 
-### AI Chat
+### AI Features
 
-Press `c` on any story to start a conversation with an AI about the story and its comments. The AI has full context of the story content and all comments.
+#### TL;DR Summaries
+
+Press `t` on any story to generate an AI-powered summary. The AI reads the article and all comments, then provides:
+- A concise summary of the article
+- Key takeaways from the discussion
+
+Summaries are cached locally, so you can revisit them without regenerating.
+
+#### Chat
+
+Press `c` to start a conversation with an AI about the story. The AI has full context of the article and all comments, so you can ask follow-up questions, get clarification, or dive deeper into specific topics.
 
 #### Bring Your Own API Key
 
