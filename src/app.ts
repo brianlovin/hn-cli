@@ -1,5 +1,6 @@
 import { BoxRenderable, type CliRenderer, type RenderContext } from "@opentui/core";
 import { log } from "./logger";
+import * as telemetry from "./telemetry";
 import { getRankedPosts, getPostById } from "./api";
 import type { HackerNewsPost } from "./types";
 import {
@@ -10,6 +11,8 @@ import {
   saveConfig,
   loadConfig,
   clearAllApiKeys,
+  isTelemetryEnabled,
+  setTelemetryEnabled,
 } from "./config";
 import { type UpdateInfo } from "./version";
 import { COLORS, detectTheme } from "./theme";
@@ -69,6 +72,7 @@ import {
   navigateSettings,
   selectSettingsItem,
   goBackInSettings,
+  getSelectedProviderUrl,
   type SettingsState,
 } from "./components/SettingsPanel";
 
@@ -379,6 +383,15 @@ export class HackerNewsApp {
     } else if (key.name === "k" || key.name === "up") {
       navigateSettings(this.settingsState, -1, getConfiguredProvider() || "anthropic");
       this.rerenderSettings();
+    } else if (key.name === "tab") {
+      // Open API key URL if a provider without a key is selected
+      const url = getSelectedProviderUrl(
+        this.settingsState,
+        getConfiguredProvider() || "anthropic",
+      );
+      if (url) {
+        this.callbacks.onOpenUrl?.(url);
+      }
     } else if (key.name === "return" || key.name === "enter") {
       const action = selectSettingsItem(
         this.settingsState,
@@ -456,6 +469,11 @@ export class HackerNewsApp {
         if (this.chatServiceState) {
           resetChatServiceClients(this.chatServiceState);
         }
+        this.rerenderSettings();
+        break;
+
+      case "toggle_telemetry":
+        setTelemetryEnabled(!isTelemetryEnabled());
         this.rerenderSettings();
         break;
     }
@@ -607,6 +625,7 @@ export class HackerNewsApp {
 
   private handleMainKey(key: any) {
     if (key.name === "s") {
+      telemetry.track("settings_opened");
       this.settingsIntent = "settings";
       this.showSettings();
       return;
@@ -617,15 +636,20 @@ export class HackerNewsApp {
     } else if (key.name === "k") {
       this.navigateStory(-1);
     } else if (key.name === "space" || key.name === " ") {
+      telemetry.track("comment_nav");
       // Space navigates to next root comment only (forward)
       this.navigateToNextComment();
     } else if (key.name === "o") {
+      telemetry.track("url_opened", { type: "url" });
       this.openStoryUrl();
     } else if (key.name === "c") {
+      telemetry.track("chat_opened");
       this.openChat();
     } else if (key.name === "r") {
+      telemetry.track("refresh");
       this.refresh();
     } else if (key.name === "t") {
+      telemetry.track("tldr_requested");
       this.handleTldrRequest();
     }
   }
@@ -705,6 +729,8 @@ export class HackerNewsApp {
   async selectStory(index: number) {
     if (index < 0 || index >= this.posts.length) return;
     if (this.renderer.isDestroyed) return;
+
+    telemetry.track("story_selected");
 
     // Stop TLDR loading animation in detail view when switching stories
     // (TLDR generation continues in background - AI indicator keeps showing)
@@ -850,6 +876,7 @@ export class HackerNewsApp {
     generateTLDR(this.selectedPost, provider, {
       onComplete: (tldr) => {
         if (this.renderer.isDestroyed) return;
+        telemetry.track("tldr_completed", { success: true });
         this.tldrCache.set(storyId, tldr);
         this.tldrLoading = false;
         this.tldrLoadingStoryId = null;
@@ -861,6 +888,7 @@ export class HackerNewsApp {
         }
       },
       onError: (error) => {
+        telemetry.track("tldr_completed", { success: false });
         log("[ERROR]", "TLDR generation failed:", error);
         this.tldrErrorIds.add(storyId);
         this.tldrLoading = false;
@@ -1156,6 +1184,8 @@ export class HackerNewsApp {
 
     const userMessage = this.chatPanelState.input.plainText.trim();
     if (!userMessage) return;
+
+    telemetry.track("chat_message");
 
     // Clear input and suggestions
     this.chatPanelState.input.clear();

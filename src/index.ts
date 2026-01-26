@@ -2,7 +2,9 @@
 import { createCliRenderer } from "@opentui/core";
 import { exec } from "child_process";
 import { HackerNewsApp } from "./app";
-import { checkForUpdates } from "./version";
+import { checkForUpdates, currentVersion } from "./version";
+import { setTelemetryEnabled } from "./config";
+import * as telemetry from "./telemetry";
 
 const COLORS = {
   bg: "#1a1a1a",
@@ -40,6 +42,15 @@ function parseArgs(): { storyId?: number } {
 async function main() {
   const { storyId } = parseArgs();
 
+  // Handle --disable-telemetry flag (permanently disables telemetry)
+  if (process.argv.includes("--disable-telemetry")) {
+    setTelemetryEnabled(false);
+  }
+
+  // Initialize telemetry and track app launch
+  telemetry.init();
+  telemetry.track("app_launch", { version: currentVersion });
+
   const renderer = await createCliRenderer({
     exitOnCtrlC: true,
     backgroundColor: COLORS.bg,
@@ -56,7 +67,8 @@ async function main() {
     onOpenUrl: (url) => {
       exec(`open "${url}"`);
     },
-    onExit: () => {
+    onExit: async () => {
+      await telemetry.flushSync();
       renderer.destroy();
       process.exit(0);
     },

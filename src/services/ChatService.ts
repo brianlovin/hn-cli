@@ -41,7 +41,12 @@ export function buildStoryContext(post: HackerNewsPost): string {
 
   if (post.comments && post.comments.length > 0) {
     context += `# Hacker News Discussion\n\n`;
-    context += `The following are comments from the Hacker News community discussing this story:\n\n`;
+    context += `The following are comments from the Hacker News community discussing this story.\n\n`;
+    context += `**Comment Structure Guide:**\n`;
+    context += `- [ROOT COMMENT #N] marks top-level comments - these represent the main conversation pillars and key themes in the discussion\n`;
+    context += `- [Reply to username] marks nested replies - these branch off from the comment by that user\n`;
+    context += `- Indentation shows nesting depth: replies are indented under their parent comments\n`;
+    context += `- Root comments are numbered (#1, #2, etc.) to help reference specific discussion threads\n\n`;
     context += formatCommentsForContext(post.comments);
   }
 
@@ -51,6 +56,8 @@ export function buildStoryContext(post: HackerNewsPost): string {
 function formatCommentsForContext(
   comments: HackerNewsComment[],
   depth = 0,
+  parentUser: string | null = null,
+  rootCommentIndex: { value: number } = { value: 0 },
 ): string {
   let result = "";
   const indent = "  ".repeat(depth);
@@ -58,7 +65,16 @@ function formatCommentsForContext(
   for (const comment of comments) {
     if (comment.user && comment.content) {
       const content = stripHtml(comment.content);
-      result += `${indent}**${comment.user}:**\n`;
+
+      // Add annotation based on comment depth
+      if (depth === 0) {
+        rootCommentIndex.value++;
+        result += `${indent}[ROOT COMMENT #${rootCommentIndex.value}] **${comment.user}:**\n`;
+      } else {
+        const replyLabel = parentUser ? `Reply to ${parentUser}` : "Reply";
+        result += `${indent}[${replyLabel}] **${comment.user}:**\n`;
+      }
+
       const indentedContent = content
         .split("\n")
         .map((line) => `${indent}${line}`)
@@ -66,7 +82,7 @@ function formatCommentsForContext(
       result += `${indentedContent}\n\n`;
 
       if (comment.comments && comment.comments.length > 0) {
-        result += formatCommentsForContext(comment.comments, depth + 1);
+        result += formatCommentsForContext(comment.comments, depth + 1, comment.user, rootCommentIndex);
       }
     }
   }

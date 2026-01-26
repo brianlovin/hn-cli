@@ -4,13 +4,26 @@ import {
   type Provider,
   getApiKey,
   getModel,
+  isTelemetryEnabled,
   ANTHROPIC_MODELS,
   OPENAI_MODELS,
 } from "../config";
 
+const PROVIDER_API_KEY_URLS: Record<Provider, { display: string; full: string }> = {
+  anthropic: {
+    display: "platform.claude.com",
+    full: "https://platform.claude.com/settings/keys",
+  },
+  openai: {
+    display: "platform.openai.com",
+    full: "https://platform.openai.com/api-keys",
+  },
+};
+
 type SettingsItemType =
   | { type: "provider"; provider: Provider; hasKey: boolean }
   | { type: "model"; modelId: string; modelName: string }
+  | { type: "telemetry"; enabled: boolean }
   | { type: "action"; action: "done" | "clear_keys" };
 
 interface SettingsListItem {
@@ -55,6 +68,12 @@ function getSettingsList(chatProvider: Provider): SettingsListItem[] {
       });
     }
   }
+
+  // Telemetry toggle
+  items.push({
+    item: { type: "telemetry", enabled: isTelemetryEnabled() },
+    enabled: true,
+  });
 
   // Action buttons
   items.push({
@@ -139,8 +158,8 @@ export function renderSettings(
 
     if (!hasKey) {
       const hint = new TextRenderable(ctx, {
-        content: "Add API Key",
-        fg: COLORS.textSecondary,
+        content: `${PROVIDER_API_KEY_URLS[listItem.item.provider].display} (tab)`,
+        fg: COLORS.textTertiary,
       });
       itemBox.add(hint);
     }
@@ -191,6 +210,48 @@ export function renderSettings(
 
       container.add(itemBox);
     }
+  }
+
+  // Telemetry section
+  container.add(new BoxRenderable(ctx, { height: 1 }));
+
+  const telemetryHeader = new TextRenderable(ctx, {
+    content: t`${bold("Telemetry")}`,
+    fg: COLORS.textSecondary,
+  });
+  container.add(telemetryHeader);
+
+  for (let i = 0; i < items.length; i++) {
+    const listItem = items[i];
+    if (!listItem || listItem.item.type !== "telemetry") continue;
+
+    const isSelected = i === state.selectedIndex;
+    const isEnabled = listItem.item.enabled;
+
+    const itemBox = new BoxRenderable(ctx, {
+      flexDirection: "row",
+      gap: 1,
+    });
+
+    const indicator = new TextRenderable(ctx, {
+      content: isSelected ? "›" : " ",
+      fg: COLORS.accent,
+    });
+    itemBox.add(indicator);
+
+    const toggle = new TextRenderable(ctx, {
+      content: isEnabled ? "●" : "○",
+      fg: isEnabled ? COLORS.accent : COLORS.textSecondary,
+    });
+    itemBox.add(toggle);
+
+    const label = new TextRenderable(ctx, {
+      content: isEnabled ? "Enabled" : "Disabled",
+      fg: isSelected ? COLORS.accent : COLORS.textPrimary,
+    });
+    itemBox.add(label);
+
+    container.add(itemBox);
   }
 
   container.add(new BoxRenderable(ctx, { height: 1 }));
@@ -258,6 +319,7 @@ export type SettingsAction =
   | { type: "add_anthropic" }
   | { type: "add_openai" }
   | { type: "clear_keys" }
+  | { type: "toggle_telemetry" }
   | { type: "done" }
   | null;
 
@@ -290,6 +352,9 @@ export function selectSettingsItem(
         provider: chatProvider,
       };
 
+    case "telemetry":
+      return { type: "toggle_telemetry" };
+
     case "action":
       switch (selected.item.action) {
         case "done":
@@ -304,4 +369,23 @@ export function selectSettingsItem(
 
 export function goBackInSettings(_state: SettingsState): boolean {
   return false; // Always exit settings on Esc
+}
+
+/**
+ * Returns the API key URL for the currently selected provider if it doesn't have a key.
+ * Returns null if the selection is not a provider or if the provider already has a key.
+ */
+export function getSelectedProviderUrl(
+  state: SettingsState,
+  chatProvider: Provider,
+): string | null {
+  const items = getSettingsList(chatProvider);
+  const selected = items[state.selectedIndex];
+  if (!selected) return null;
+
+  if (selected.item.type === "provider" && !selected.item.hasKey) {
+    return PROVIDER_API_KEY_URLS[selected.item.provider].full;
+  }
+
+  return null;
 }
