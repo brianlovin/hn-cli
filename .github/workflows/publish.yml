@@ -25,8 +25,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22.x'
+          node-version: '24.x'
           registry-url: 'https://registry.npmjs.org'
 
-      - run: npm install -g npm@latest  # Need npm 11.5+ for OIDC
-      - run: npm publish --access public
+      - run: npm publish --provenance --access public
