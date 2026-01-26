@@ -16,7 +16,7 @@ jobs:
         with:
           # Pin to specific version to avoid Bun segfault bugs on Linux
           # See: https://github.com/oven-sh/bun/issues/22452
-          bun-version: "1.1.39"
+          bun-version: "1.2.10"
 
       - run: bun install
 
