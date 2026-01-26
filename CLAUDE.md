@@ -61,6 +61,18 @@ bun run debug highlighted-comment # Test comment highlighting
 
 - `@opentui/core` - Terminal UI framework with Yoga layout engine
 
+## Publishing to npm
+
+Published as `@brianlovin/hn-cli`. To release a new version:
+
+```sh
+npm version patch   # or minor/major
+git push origin main --tags
+gh release create v0.x.x --generate-notes
+```
+
+The GitHub Action will automatically build, test, and publish to npm when a release is created.
+
 ---
 
 Default to using Bun instead of Node.js.
