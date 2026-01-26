@@ -10,6 +10,8 @@ export interface Theme {
   accent: string;
   link: string;
   success: string;
+  error: string;
+  hint: string;
   commentL1: string;
   commentL2: string;
   commentL3: string;
@@ -25,6 +27,8 @@ const DARK_THEME: Theme = {
   accent: "#ff6600",
   link: "#6699ff",
   success: "#4ade80",
+  error: "#ef4444",
+  hint: "#a855f7",
   commentL1: "#555555",
   commentL2: "#444444",
   commentL3: "#333333",
@@ -40,6 +44,8 @@ const LIGHT_THEME: Theme = {
   accent: "#ff6600",
   link: "#0066cc",
   success: "#22c55e",
+  error: "#dc2626",
+  hint: "#9333ea",
   commentL1: "#cccccc",
   commentL2: "#dddddd",
   commentL3: "#eeeeee",

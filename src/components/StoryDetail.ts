@@ -3,18 +3,30 @@ import {
   TextRenderable,
   ScrollBoxRenderable,
   type RenderContext,
+  bold,
+  t,
+  fg,
+  underline,
 } from "@opentui/core";
 import type { HackerNewsPost } from "../types";
 import { COLORS } from "../theme";
-import { stripHtml } from "../utils";
+import { stripHtml, LOADING_CHARS } from "../utils";
 import { renderComment } from "./Comment";
-import { createShortcutsBar, MAIN_SHORTCUTS } from "./ShortcutsBar";
+import { createShortcutsBar, DETAIL_SHORTCUTS } from "./ShortcutsBar";
 import { renderStoryHeader } from "./StoryHeader";
 import type { UpdateInfo } from "../version";
 import { getUpdateCommand } from "../version";
+import type { TLDRResult } from "../services/TLDRService";
 
 export interface StoryDetailCallbacks {
   onOpenStoryUrl: () => void;
+}
+
+export interface TLDROptions {
+  tldr: TLDRResult | null;
+  isLoading: boolean;
+  loadingFrame?: number;
+  hasError?: boolean;
 }
 
 export interface StoryDetailState {
@@ -80,7 +92,7 @@ export function createStoryDetail(
   // They are added dynamically when a story is selected (see showDetailComponents)
 
   // Keyboard shortcuts bar at bottom
-  const shortcutsBar = createShortcutsBar(ctx, MAIN_SHORTCUTS);
+  const shortcutsBar = createShortcutsBar(ctx, DETAIL_SHORTCUTS);
 
   return {
     panel,
@@ -127,6 +139,7 @@ export function renderStoryDetail(
   state: StoryDetailState,
   post: HackerNewsPost,
   callbacks: StoryDetailCallbacks,
+  tldrOptions?: TLDROptions,
 ): void {
   // Clear existing scroll content
   for (const child of state.content.getChildren()) {
@@ -137,11 +150,11 @@ export function renderStoryDetail(
   // Render header with title and domain
   renderStoryHeader(ctx, state.header, post, callbacks);
 
-  // Post content if exists
+  // Post content if exists (e.g. Ask HN, Show HN descriptions)
   if (post.content) {
     const contentBox = new BoxRenderable(ctx, {
       width: "100%",
-      marginBottom: 1,
+      marginBottom: 2,
     });
     const contentText = new TextRenderable(ctx, {
       content: stripHtml(post.content),
@@ -152,18 +165,136 @@ export function renderStoryDetail(
     state.content.add(contentBox);
   }
 
+  // TLDR section (if loading, error, or has content)
+  if (tldrOptions?.isLoading) {
+    const tldrSection = new BoxRenderable(ctx, {
+      width: "100%",
+      flexDirection: "column",
+      marginBottom: 1,
+      paddingBottom: 1,
+      borderStyle: "single",
+      border: ["bottom"],
+      borderColor: COLORS.border,
+    });
+    const frame = tldrOptions.loadingFrame ?? 0;
+    const loadingChar = LOADING_CHARS[frame % LOADING_CHARS.length];
+    const loadingText = new TextRenderable(ctx, {
+      content: `${loadingChar} Generating TLDR...`,
+      fg: COLORS.textTertiary,
+    });
+    tldrSection.add(loadingText);
+    state.content.add(tldrSection);
+  } else if (tldrOptions?.hasError) {
+    const tldrSection = new BoxRenderable(ctx, {
+      width: "100%",
+      flexDirection: "column",
+      marginBottom: 1,
+      paddingBottom: 1,
+      borderStyle: "single",
+      border: ["bottom"],
+      borderColor: COLORS.border,
+    });
+    const errorText = new TextRenderable(ctx, {
+      content: "Failed to generate TLDR. Press t to retry.",
+      fg: COLORS.error,
+    });
+    tldrSection.add(errorText);
+    state.content.add(tldrSection);
+  } else if (tldrOptions?.tldr) {
+    const tldrSection = new BoxRenderable(ctx, {
+      width: "100%",
+      flexDirection: "column",
+      flexShrink: 1,
+      marginBottom: 1,
+      paddingBottom: 1,
+      borderStyle: "single",
+      border: ["bottom"],
+      borderColor: COLORS.border,
+    });
+
+    // Main TL;DR heading
+    const tldrHeading = new TextRenderable(ctx, {
+      content: t`${bold("TL;DR")}`,
+      fg: COLORS.accent,
+    });
+    tldrSection.add(tldrHeading);
+    const headingSpacer = new BoxRenderable(ctx, { height: 1 });
+    tldrSection.add(headingSpacer);
+
+    // Article summary section
+    const articleHeader = new TextRenderable(ctx, {
+      content: t`${bold("Article summary")}`,
+      fg: COLORS.textSecondary,
+    });
+    tldrSection.add(articleHeader);
+    const articleContentBox = new BoxRenderable(ctx, {
+      flexGrow: 1,
+      flexShrink: 1,
+    });
+    const articleContent = new TextRenderable(ctx, {
+      content: tldrOptions.tldr.articleSummary,
+      fg: COLORS.textPrimary,
+      wrapMode: "word",
+    });
+    articleContentBox.add(articleContent);
+    tldrSection.add(articleContentBox);
+
+    // Spacer
+    const spacer = new BoxRenderable(ctx, { height: 1 });
+    tldrSection.add(spacer);
+
+    // Discussion summary section
+    const discussionHeader = new TextRenderable(ctx, {
+      content: t`${bold("Discussion summary")}`,
+      fg: COLORS.textSecondary,
+    });
+    tldrSection.add(discussionHeader);
+    const discussionContentBox = new BoxRenderable(ctx, {
+      flexGrow: 1,
+      flexShrink: 1,
+    });
+    const discussionContent = new TextRenderable(ctx, {
+      content: tldrOptions.tldr.discussionSummary,
+      fg: COLORS.textPrimary,
+      wrapMode: "word",
+    });
+    discussionContentBox.add(discussionContent);
+    tldrSection.add(discussionContentBox);
+
+    // Chat hint
+    const chatHintSpacer = new BoxRenderable(ctx, { height: 1 });
+    tldrSection.add(chatHintSpacer);
+    const chatHint = new TextRenderable(ctx, {
+      content: "c to continue chatting",
+      fg: COLORS.textTertiary,
+    });
+    tldrSection.add(chatHint);
+
+    state.content.add(tldrSection);
+  }
+
   // Comments section
   const commentsSection = new BoxRenderable(ctx, {
     width: "100%",
     flexDirection: "column",
   });
 
-  // Comments header with count
-  const commentsHeader = new TextRenderable(ctx, {
+  // Comments header with count and TLDR hint
+  const commentsHeaderRow = new BoxRenderable(ctx, {
+    width: "100%",
+    flexDirection: "row",
+  });
+  const commentsCount = new TextRenderable(ctx, {
     content: `${post.comments_count} comments`,
     fg: COLORS.textSecondary,
   });
-  commentsSection.add(commentsHeader);
+  commentsHeaderRow.add(commentsCount);
+  const tldrHint = new TextRenderable(ctx, {
+    content: t` · ${underline(fg(COLORS.textPrimary)("t"))}ldr`,
+    fg: COLORS.textTertiary,
+  });
+  commentsHeaderRow.add(tldrHint);
+  commentsSection.add(commentsHeaderRow);
 
   // Comments
   if (post.comments && post.comments.length > 0) {

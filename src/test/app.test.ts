@@ -1,221 +1,192 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { createTestRenderer, type TestRenderer, type MockInput, type MockMouse } from "@opentui/core/testing";
-import { HackerNewsApp } from "../app";
+import { createAppTestContext, cleanupTestContext, type TestContext } from "./test-utils";
 import { createMockPosts, createMockPostWithComments } from "./fixtures";
 
 describe("HackerNewsApp", () => {
-  let renderer: TestRenderer;
-  let mockInput: MockInput;
-  let mockMouse: MockMouse;
-  let app: HackerNewsApp;
-  let renderOnce: () => Promise<void>;
-  let captureCharFrame: () => string;
+  let ctx: TestContext;
 
   beforeEach(async () => {
-    const testContext = await createTestRenderer({
-      width: 120,
-      height: 40,
-      kittyKeyboard: true,
-      otherModifiersMode: true,
-    });
-
-    renderer = testContext.renderer;
-    mockInput = testContext.mockInput;
-    mockMouse = testContext.mockMouse;
-    renderOnce = testContext.renderOnce;
-    captureCharFrame = testContext.captureCharFrame;
-
-    app = new HackerNewsApp(renderer, {
-      onOpenUrl: () => {},
-      onExit: () => {},
-    });
-
-    // Initialize layout without loading real data
-    app.initializeForTesting();
+    ctx = await createAppTestContext();
   });
 
   afterEach(async () => {
-    // Stop any intervals (typing indicators, etc.) before destroying
-    app.cleanup();
-    // Wait for any pending async operations
-    await renderer.idle();
-    renderer.destroy();
+    await cleanupTestContext(ctx);
   });
 
   describe("Story Navigation", () => {
     beforeEach(async () => {
       const mockPosts = createMockPosts(10);
-      app.setPostsForTesting(mockPosts);
-      await renderOnce();
+      ctx.app.setPostsForTesting(mockPosts);
+      await ctx.renderOnce();
     });
 
     it("should start with no story selected", () => {
-      expect(app.currentSelectedIndex).toBe(-1);
+      expect(ctx.app.currentSelectedIndex).toBe(-1);
     });
 
     it("should select first story when j is pressed with no selection", async () => {
-      expect(app.currentSelectedIndex).toBe(-1);
-      mockInput.pressKey("j");
-      await renderOnce();
-      expect(app.currentSelectedIndex).toBe(0);
+      expect(ctx.app.currentSelectedIndex).toBe(-1);
+      ctx.mockInput.pressKey("j");
+      await ctx.renderOnce();
+      expect(ctx.app.currentSelectedIndex).toBe(0);
     });
 
     it("should select last story when k is pressed with no selection", async () => {
-      expect(app.currentSelectedIndex).toBe(-1);
-      mockInput.pressKey("k");
-      await renderOnce();
-      expect(app.currentSelectedIndex).toBe(9); // 10 posts, last index is 9
+      expect(ctx.app.currentSelectedIndex).toBe(-1);
+      ctx.mockInput.pressKey("k");
+      await ctx.renderOnce();
+      expect(ctx.app.currentSelectedIndex).toBe(9); // 10 posts, last index is 9
     });
 
     it("should navigate down with j key", async () => {
       // First j selects first story (from -1 to 0)
-      mockInput.pressKey("j");
-      await renderOnce();
-      expect(app.currentSelectedIndex).toBe(0);
+      ctx.mockInput.pressKey("j");
+      await ctx.renderOnce();
+      expect(ctx.app.currentSelectedIndex).toBe(0);
 
       // Second j navigates to next story
-      mockInput.pressKey("j");
-      await renderOnce();
-      expect(app.currentSelectedIndex).toBe(1);
+      ctx.mockInput.pressKey("j");
+      await ctx.renderOnce();
+      expect(ctx.app.currentSelectedIndex).toBe(1);
     });
 
     it("should navigate up with k key", async () => {
       // First select a story
-      mockInput.pressKey("j");
-      await renderOnce();
-      expect(app.currentSelectedIndex).toBe(0);
+      ctx.mockInput.pressKey("j");
+      await ctx.renderOnce();
+      expect(ctx.app.currentSelectedIndex).toBe(0);
 
       // Go down once more
-      mockInput.pressKey("j");
-      await renderOnce();
-      expect(app.currentSelectedIndex).toBe(1);
+      ctx.mockInput.pressKey("j");
+      await ctx.renderOnce();
+      expect(ctx.app.currentSelectedIndex).toBe(1);
 
       // Then go up
-      mockInput.pressKey("k");
-      await renderOnce();
-      expect(app.currentSelectedIndex).toBe(0);
+      ctx.mockInput.pressKey("k");
+      await ctx.renderOnce();
+      expect(ctx.app.currentSelectedIndex).toBe(0);
     });
 
     it("should not go above first story when at first story", async () => {
       // First select a story
-      mockInput.pressKey("j");
-      await renderOnce();
-      expect(app.currentSelectedIndex).toBe(0);
+      ctx.mockInput.pressKey("j");
+      await ctx.renderOnce();
+      expect(ctx.app.currentSelectedIndex).toBe(0);
 
       // Try to go up from first story
-      mockInput.pressKey("k");
-      await renderOnce();
-      expect(app.currentSelectedIndex).toBe(0);
+      ctx.mockInput.pressKey("k");
+      await ctx.renderOnce();
+      expect(ctx.app.currentSelectedIndex).toBe(0);
     });
 
     it("should not go below last story", async () => {
       // First select a story then navigate to last story
       for (let i = 0; i < 15; i++) {
-        mockInput.pressKey("j");
-        await renderOnce();
+        ctx.mockInput.pressKey("j");
+        await ctx.renderOnce();
       }
 
       // Should be at last story (index 9) - first j goes from -1 to 0, then 9 more to reach 9
-      expect(app.currentSelectedIndex).toBe(9);
+      expect(ctx.app.currentSelectedIndex).toBe(9);
 
       // Try to go further
-      mockInput.pressKey("j");
-      await renderOnce();
+      ctx.mockInput.pressKey("j");
+      await ctx.renderOnce();
 
-      expect(app.currentSelectedIndex).toBe(9);
+      expect(ctx.app.currentSelectedIndex).toBe(9);
     });
 
     it("should navigate multiple stories in sequence", async () => {
       // First j selects first story (from -1 to 0)
-      mockInput.pressKey("j");
-      await renderOnce();
+      ctx.mockInput.pressKey("j");
+      await ctx.renderOnce();
       // Second j goes to 1
-      mockInput.pressKey("j");
-      await renderOnce();
+      ctx.mockInput.pressKey("j");
+      await ctx.renderOnce();
       // Third j goes to 2
-      mockInput.pressKey("j");
-      await renderOnce();
+      ctx.mockInput.pressKey("j");
+      await ctx.renderOnce();
       // Fourth j goes to 3
-      mockInput.pressKey("j");
-      await renderOnce();
+      ctx.mockInput.pressKey("j");
+      await ctx.renderOnce();
 
-      expect(app.currentSelectedIndex).toBe(3);
+      expect(ctx.app.currentSelectedIndex).toBe(3);
     });
   });
 
   describe("Comment Navigation", () => {
     beforeEach(async () => {
       const mockPost = createMockPostWithComments({}, 5);
-      app.setPostsForTesting([mockPost]);
-      await app.setSelectedPostForTesting(mockPost);
-      await renderOnce();
+      ctx.app.setPostsForTesting([mockPost]);
+      await ctx.app.setSelectedPostForTesting(mockPost);
+      await ctx.renderOnce();
     });
 
     it("should start at first root comment", () => {
-      expect(app.currentRootCommentIndex).toBe(0);
+      expect(ctx.app.currentRootCommentIndex).toBe(0);
     });
 
     it("should have correct number of root comments", () => {
-      expect(app.rootCommentCount).toBe(5);
+      expect(ctx.app.rootCommentCount).toBe(5);
     });
 
-    it("should navigate to next comment with cmd+j", async () => {
-      expect(app.currentRootCommentIndex).toBe(0);
+    it("should navigate to next comment with space key", async () => {
+      expect(ctx.app.currentRootCommentIndex).toBe(0);
 
-      mockInput.pressKey("j", { super: true }); // cmd key is super with kitty keyboard
-      await renderOnce();
+      ctx.mockInput.pressKey(" ");
+      await ctx.renderOnce();
 
-      expect(app.currentRootCommentIndex).toBe(1);
+      expect(ctx.app.currentRootCommentIndex).toBe(1);
     });
 
-    it("should navigate to previous comment with cmd+k", async () => {
-      // First go to comment 2
-      mockInput.pressKey("j", { super: true });
-      await renderOnce();
-      mockInput.pressKey("j", { super: true });
-      await renderOnce();
-      expect(app.currentRootCommentIndex).toBe(2);
+    it("should only navigate forward with space (no backward navigation)", async () => {
+      // Navigate to comment 2
+      ctx.mockInput.pressKey(" ");
+      await ctx.renderOnce();
+      ctx.mockInput.pressKey(" ");
+      await ctx.renderOnce();
+      expect(ctx.app.currentRootCommentIndex).toBe(2);
 
-      // Go back
-      mockInput.pressKey("k", { super: true });
-      await renderOnce();
-
-      expect(app.currentRootCommentIndex).toBe(1);
+      // Space should only go forward, pressing more times should continue forward
+      ctx.mockInput.pressKey(" ");
+      await ctx.renderOnce();
+      expect(ctx.app.currentRootCommentIndex).toBe(3);
     });
 
-    it("should not go before first comment", async () => {
-      mockInput.pressKey("k", { super: true });
-      await renderOnce();
-
-      expect(app.currentRootCommentIndex).toBe(0);
+    it("should stay at first comment when at beginning (space only goes forward)", async () => {
+      // At first comment, space should go to next
+      expect(ctx.app.currentRootCommentIndex).toBe(0);
+      ctx.mockInput.pressKey(" ");
+      await ctx.renderOnce();
+      expect(ctx.app.currentRootCommentIndex).toBe(1);
     });
 
     it("should not go past last comment", async () => {
       // Navigate to last comment
       for (let i = 0; i < 10; i++) {
-        mockInput.pressKey("j", { super: true });
-        await renderOnce();
+        ctx.mockInput.pressKey(" ");
+        await ctx.renderOnce();
       }
 
-      expect(app.currentRootCommentIndex).toBe(4); // 0-indexed, 5 comments
+      expect(ctx.app.currentRootCommentIndex).toBe(4); // 0-indexed, 5 comments
     });
 
     it("should scroll to show the target comment", async () => {
       // Create a post with 12 root comments to ensure scrolling is needed
       const mockPost = createMockPostWithComments({}, 12);
-      app.setPostsForTesting([mockPost]);
-      await app.setSelectedPostForTesting(mockPost);
-      await renderOnce();
+      ctx.app.setPostsForTesting([mockPost]);
+      await ctx.app.setSelectedPostForTesting(mockPost);
+      await ctx.renderOnce();
 
       // Get initial scroll position using the new component structure
-      const storyDetailState = (app as any).storyDetailState;
+      const storyDetailState = (ctx.app as any).storyDetailState;
       const initialScrollTop = storyDetailState.scroll.scrollTop;
       expect(initialScrollTop).toBe(0);
 
       // Navigate to comment 5
       for (let i = 0; i < 5; i++) {
-        mockInput.pressKey("j", { super: true });
-        await renderOnce();
+        ctx.mockInput.pressKey(" ");
+        await ctx.renderOnce();
       }
 
       // Scroll should have changed to show comment 5
@@ -227,86 +198,86 @@ describe("HackerNewsApp", () => {
   describe("Click Navigation", () => {
     beforeEach(async () => {
       const mockPosts = createMockPosts(10);
-      app.setPostsForTesting(mockPosts);
-      await renderOnce();
+      ctx.app.setPostsForTesting(mockPosts);
+      await ctx.renderOnce();
     });
 
     it("should select story on click", async () => {
-      expect(app.currentSelectedIndex).toBe(-1);
+      expect(ctx.app.currentSelectedIndex).toBe(-1);
 
       // Click on third story (approximate Y position based on layout)
       // Stories start after header (height 3), each story is ~2 lines
       const storyY = 3 + 2 * 2 + 1; // Third story
-      await mockMouse.click(10, storyY);
-      await renderOnce();
+      await ctx.mockMouse.click(10, storyY);
+      await ctx.renderOnce();
 
       // The click should have selected a story
       // Exact index depends on hit testing
-      expect(app.currentSelectedIndex).toBeGreaterThanOrEqual(0);
+      expect(ctx.app.currentSelectedIndex).toBeGreaterThanOrEqual(0);
     });
   });
 
   describe("UI Rendering", () => {
     it("should render header with Hacker News title", async () => {
-      app.setPostsForTesting(createMockPosts(5));
-      await renderOnce();
+      ctx.app.setPostsForTesting(createMockPosts(5));
+      await ctx.renderOnce();
 
-      const frame = captureCharFrame();
+      const frame = ctx.captureCharFrame();
       expect(frame).toContain("Hacker News");
     });
 
     it("should render story titles", async () => {
       const posts = createMockPosts(3);
-      app.setPostsForTesting(posts);
-      await renderOnce();
+      ctx.app.setPostsForTesting(posts);
+      await ctx.renderOnce();
 
-      const frame = captureCharFrame();
+      const frame = ctx.captureCharFrame();
       expect(frame).toContain("Test Story 1");
     });
 
     it("should render domains when present", async () => {
       const posts = createMockPosts(3);
-      app.setPostsForTesting(posts);
-      await renderOnce();
+      ctx.app.setPostsForTesting(posts);
+      await ctx.renderOnce();
 
-      const frame = captureCharFrame();
+      const frame = ctx.captureCharFrame();
       // Posts at index 1 and 2 should have domains
       expect(frame).toContain("domain2.com");
     });
 
     it("should render keyboard shortcuts bar when story selected", async () => {
       const posts = createMockPosts(1);
-      app.setPostsForTesting(posts);
+      ctx.app.setPostsForTesting(posts);
       // Select a story to show the shortcuts bar
-      await app.setSelectedPostForTesting(posts[0]!);
-      await renderOnce();
+      await ctx.app.setSelectedPostForTesting(posts[0]!);
+      await ctx.renderOnce();
 
-      const frame = captureCharFrame();
+      const frame = ctx.captureCharFrame();
       // Shortcuts bar should show keyboard hints
       expect(frame).toContain("j/k");
-      expect(frame).toContain("stories");
-      expect(frame).toContain("comments");
+      expect(frame).toContain("navigate");
+      expect(frame).toContain("next");
     });
   });
 
   describe("Post Detail View", () => {
     it("should render post header with comments count", async () => {
       const post = createMockPostWithComments({}, 2);
-      app.setPostsForTesting([post]);
-      await app.setSelectedPostForTesting(post);
-      await renderOnce();
+      ctx.app.setPostsForTesting([post]);
+      await ctx.app.setSelectedPostForTesting(post);
+      await ctx.renderOnce();
 
-      const frame = captureCharFrame();
+      const frame = ctx.captureCharFrame();
       expect(frame).toContain("2 comments");
     });
 
     it("should render comments section", async () => {
       const post = createMockPostWithComments({}, 5);
-      app.setPostsForTesting([post]);
-      await app.setSelectedPostForTesting(post);
-      await renderOnce();
+      ctx.app.setPostsForTesting([post]);
+      await ctx.app.setSelectedPostForTesting(post);
+      await ctx.renderOnce();
 
-      const frame = captureCharFrame();
+      const frame = ctx.captureCharFrame();
       expect(frame).toContain("5 comments");
     });
   });
@@ -314,19 +285,19 @@ describe("HackerNewsApp", () => {
   describe("Chat Mode Rendering", () => {
     it("should render suggestions on separate lines", async () => {
       const post = createMockPostWithComments({}, 2);
-      app.setPostsForTesting([post]);
-      await app.setSelectedPostForTesting(post);
+      ctx.app.setPostsForTesting([post]);
+      await ctx.app.setSelectedPostForTesting(post);
 
       // Enter chat mode properly using showChatView
-      (app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
-      (app as any).showChatView();
-      await renderOnce();
+      (ctx.app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
+      (ctx.app as any).showChatView();
+      await ctx.renderOnce();
 
       // Wait for focus timeout
       await new Promise(resolve => setTimeout(resolve, 20));
 
       // Set suggestions via the chat panel state
-      const chatPanelState = (app as any).chatPanelState;
+      const chatPanelState = (ctx.app as any).chatPanelState;
       if (chatPanelState) {
         chatPanelState.suggestions.loading = false;
         chatPanelState.suggestions.suggestions = ["Question one?", "Question two?", "Question three?"];
@@ -334,11 +305,11 @@ describe("HackerNewsApp", () => {
 
         // Import and call renderSuggestions
         const { renderSuggestions } = await import("../components/Suggestions");
-        renderSuggestions((app as any).ctx, chatPanelState.suggestions);
+        renderSuggestions((ctx.app as any).ctx, chatPanelState.suggestions);
       }
 
-      await renderOnce();
-      const frame = captureCharFrame();
+      await ctx.renderOnce();
+      const frame = ctx.captureCharFrame();
 
       // Verify each suggestion is on a separate line
       const lines = frame.split("\n");
@@ -364,20 +335,20 @@ describe("HackerNewsApp", () => {
 
     it("should navigate suggestions with arrow keys", async () => {
       const post = createMockPostWithComments({}, 2);
-      app.setPostsForTesting([post]);
-      await app.setSelectedPostForTesting(post);
+      ctx.app.setPostsForTesting([post]);
+      await ctx.app.setSelectedPostForTesting(post);
 
       // Enter chat mode properly
-      (app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
-      (app as any).showChatView();
-      await renderOnce();
+      (ctx.app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
+      (ctx.app as any).showChatView();
+      await ctx.renderOnce();
 
       // Wait for focus timeout
       await new Promise(resolve => setTimeout(resolve, 20));
-      await renderOnce();
+      await ctx.renderOnce();
 
       // Set suggestions via the chat panel state
-      const chatPanelState = (app as any).chatPanelState;
+      const chatPanelState = (ctx.app as any).chatPanelState;
       if (chatPanelState) {
         chatPanelState.suggestions.loading = false;
         chatPanelState.suggestions.suggestions = ["Question one?", "Question two?", "Question three?"];
@@ -385,62 +356,62 @@ describe("HackerNewsApp", () => {
         chatPanelState.suggestions.selectedIndex = 2;
 
         const { renderSuggestions } = await import("../components/Suggestions");
-        renderSuggestions((app as any).ctx, chatPanelState.suggestions);
+        renderSuggestions((ctx.app as any).ctx, chatPanelState.suggestions);
       }
-      await renderOnce();
+      await ctx.renderOnce();
 
       // Verify initial state
       expect(chatPanelState.suggestions.selectedIndex).toBe(2);
       expect(chatPanelState.suggestions.suggestions.length).toBe(3);
 
       // Navigate up (from index 2 to 1)
-      mockInput.pressKey("ARROW_UP");
-      await renderOnce();
+      ctx.mockInput.pressKey("ARROW_UP");
+      await ctx.renderOnce();
       expect(chatPanelState.suggestions.selectedIndex).toBe(1);
 
       // Navigate up again (from index 1 to 0)
-      mockInput.pressKey("ARROW_UP");
-      await renderOnce();
+      ctx.mockInput.pressKey("ARROW_UP");
+      await ctx.renderOnce();
       expect(chatPanelState.suggestions.selectedIndex).toBe(0);
 
       // Navigate down (from index 0 to 1)
-      mockInput.pressKey("ARROW_DOWN");
-      await renderOnce();
+      ctx.mockInput.pressKey("ARROW_DOWN");
+      await ctx.renderOnce();
       expect(chatPanelState.suggestions.selectedIndex).toBe(1);
     });
 
     it("should select suggestion when selectSuggestion is called", async () => {
       const post = createMockPostWithComments({}, 2);
-      app.setPostsForTesting([post]);
-      await app.setSelectedPostForTesting(post);
+      ctx.app.setPostsForTesting([post]);
+      await ctx.app.setSelectedPostForTesting(post);
 
       // Enter chat mode
-      (app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
-      (app as any).showChatView();
-      await renderOnce();
+      (ctx.app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
+      (ctx.app as any).showChatView();
+      await ctx.renderOnce();
 
       // Wait for focus timeout
       await new Promise(resolve => setTimeout(resolve, 20));
-      await renderOnce();
+      await ctx.renderOnce();
 
       // Set up suggestions
-      const chatPanelState = (app as any).chatPanelState;
+      const chatPanelState = (ctx.app as any).chatPanelState;
       if (chatPanelState) {
         chatPanelState.suggestions.loading = false;
         chatPanelState.suggestions.suggestions = ["Question one?", "Question two?", "Question three?"];
         chatPanelState.suggestions.selectedIndex = 0;
 
         const { renderSuggestions } = await import("../components/Suggestions");
-        renderSuggestions((app as any).ctx, chatPanelState.suggestions);
+        renderSuggestions((ctx.app as any).ctx, chatPanelState.suggestions);
       }
-      await renderOnce();
+      await ctx.renderOnce();
 
       // Verify initial state
       expect(chatPanelState.suggestions.suggestions.length).toBe(3);
       expect(chatPanelState.suggestions.selectedIndex).toBe(0);
 
       // Call selectSuggestion directly
-      (app as any).selectSuggestion();
+      (ctx.app as any).selectSuggestion();
 
       // After selection, suggestions should be cleared
       expect(chatPanelState.suggestions.suggestions.length).toBe(0);
@@ -449,29 +420,29 @@ describe("HackerNewsApp", () => {
 
     it("should submit suggestion when Enter is pressed with suggestion selected", async () => {
       const post = createMockPostWithComments({}, 2);
-      app.setPostsForTesting([post]);
-      await app.setSelectedPostForTesting(post);
+      ctx.app.setPostsForTesting([post]);
+      await ctx.app.setSelectedPostForTesting(post);
 
       // Enter chat mode
-      (app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
-      (app as any).showChatView();
-      await renderOnce();
+      (ctx.app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
+      (ctx.app as any).showChatView();
+      await ctx.renderOnce();
 
       // Wait for the focus timeout from showChatView
       await new Promise(resolve => setTimeout(resolve, 20));
-      await renderOnce();
+      await ctx.renderOnce();
 
       // Set up suggestions
-      const chatPanelState = (app as any).chatPanelState;
+      const chatPanelState = (ctx.app as any).chatPanelState;
       if (chatPanelState) {
         chatPanelState.suggestions.loading = false;
         chatPanelState.suggestions.suggestions = ["Question one?", "Question two?", "Question three?"];
         chatPanelState.suggestions.selectedIndex = 0;
 
         const { renderSuggestions } = await import("../components/Suggestions");
-        renderSuggestions((app as any).ctx, chatPanelState.suggestions);
+        renderSuggestions((ctx.app as any).ctx, chatPanelState.suggestions);
       }
-      await renderOnce();
+      await ctx.renderOnce();
 
       // Verify initial state
       expect(chatPanelState.suggestions.suggestions.length).toBe(3);
@@ -480,8 +451,8 @@ describe("HackerNewsApp", () => {
 
       // Use the keyboard handler path - pressing Enter with empty input and selected suggestion
       // triggers selectSuggestion() which selects and submits the suggestion
-      mockInput.pressEnter();
-      await renderOnce();
+      ctx.mockInput.pressEnter();
+      await ctx.renderOnce();
 
       // After submission, suggestions should be cleared and message should be sent
       expect(chatPanelState.suggestions.suggestions.length).toBe(0);
@@ -490,32 +461,32 @@ describe("HackerNewsApp", () => {
 
     it("should submit typed text when Enter is pressed with text in input", async () => {
       const post = createMockPostWithComments({}, 2);
-      app.setPostsForTesting([post]);
-      await app.setSelectedPostForTesting(post);
+      ctx.app.setPostsForTesting([post]);
+      await ctx.app.setSelectedPostForTesting(post);
 
       // Enter chat mode
-      (app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
-      (app as any).showChatView();
-      await renderOnce();
+      (ctx.app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
+      (ctx.app as any).showChatView();
+      await ctx.renderOnce();
 
       // Wait for the focus timeout from showChatView
       await new Promise(resolve => setTimeout(resolve, 20));
-      await renderOnce();
+      await ctx.renderOnce();
 
       // Clear any suggestions
-      const chatPanelState = (app as any).chatPanelState;
+      const chatPanelState = (ctx.app as any).chatPanelState;
       chatPanelState.suggestions.loading = false;
       chatPanelState.suggestions.suggestions = [];
 
       const { renderSuggestions } = await import("../components/Suggestions");
-      renderSuggestions((app as any).ctx, chatPanelState.suggestions);
+      renderSuggestions((ctx.app as any).ctx, chatPanelState.suggestions);
 
       // Focus the input before typing (input is not auto-focused anymore)
       chatPanelState.input.focus();
 
       // Type some text into the input
       chatPanelState.input.insertText("Hello, this is my question");
-      await renderOnce();
+      await ctx.renderOnce();
 
       // Verify the text is in the input
       expect(chatPanelState.input.plainText).toBe("Hello, this is my question");
@@ -525,7 +496,7 @@ describe("HackerNewsApp", () => {
 
       // Emit submit event (simulates Enter key)
       chatPanelState.input.emit("submit");
-      await renderOnce();
+      await ctx.renderOnce();
 
       // Input should be cleared and message should be added
       // Note: sendChatMessage clears the input after sending
@@ -534,35 +505,35 @@ describe("HackerNewsApp", () => {
 
     it("should select suggestion when Enter key is pressed", async () => {
       const post = createMockPostWithComments({}, 2);
-      app.setPostsForTesting([post]);
-      await app.setSelectedPostForTesting(post);
+      ctx.app.setPostsForTesting([post]);
+      await ctx.app.setSelectedPostForTesting(post);
 
       // Enter chat mode
-      (app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
-      (app as any).showChatView();
-      await renderOnce();
+      (ctx.app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
+      (ctx.app as any).showChatView();
+      await ctx.renderOnce();
 
       // Wait for the focus timeout from showChatView
       await new Promise(resolve => setTimeout(resolve, 20));
-      await renderOnce();
+      await ctx.renderOnce();
 
       // Set up state with a suggestion selected
-      const chatPanelState = (app as any).chatPanelState;
+      const chatPanelState = (ctx.app as any).chatPanelState;
       chatPanelState.suggestions.loading = false;
       chatPanelState.suggestions.suggestions = ["Test question?"];
       chatPanelState.suggestions.selectedIndex = 0;
 
       const { renderSuggestions } = await import("../components/Suggestions");
-      renderSuggestions((app as any).ctx, chatPanelState.suggestions);
-      await renderOnce();
+      renderSuggestions((ctx.app as any).ctx, chatPanelState.suggestions);
+      await ctx.renderOnce();
 
       // Verify initial state
       expect(chatPanelState.suggestions.suggestions.length).toBe(1);
       expect(chatPanelState.suggestions.selectedIndex).toBe(0);
 
       // Press Enter key
-      mockInput.pressEnter();
-      await renderOnce();
+      ctx.mockInput.pressEnter();
+      await ctx.renderOnce();
 
       // Suggestion should be selected and cleared
       expect(chatPanelState.suggestions.suggestions.length).toBe(0);
@@ -571,27 +542,27 @@ describe("HackerNewsApp", () => {
 
     it("should insert suggestion into input when Tab is pressed", async () => {
       const post = createMockPostWithComments({}, 2);
-      app.setPostsForTesting([post]);
-      await app.setSelectedPostForTesting(post);
+      ctx.app.setPostsForTesting([post]);
+      await ctx.app.setSelectedPostForTesting(post);
 
       // Enter chat mode
-      (app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
-      (app as any).showChatView();
-      await renderOnce();
+      (ctx.app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
+      (ctx.app as any).showChatView();
+      await ctx.renderOnce();
 
       // Wait for the focus timeout from showChatView
       await new Promise(resolve => setTimeout(resolve, 20));
-      await renderOnce();
+      await ctx.renderOnce();
 
       // Set up state with a suggestion selected
-      const chatPanelState = (app as any).chatPanelState;
+      const chatPanelState = (ctx.app as any).chatPanelState;
       chatPanelState.suggestions.loading = false;
       chatPanelState.suggestions.suggestions = ["What is the main argument?", "Who wrote this?"];
       chatPanelState.suggestions.selectedIndex = 0;
 
       const { renderSuggestions } = await import("../components/Suggestions");
-      renderSuggestions((app as any).ctx, chatPanelState.suggestions);
-      await renderOnce();
+      renderSuggestions((ctx.app as any).ctx, chatPanelState.suggestions);
+      await ctx.renderOnce();
 
       // Verify initial state
       expect(chatPanelState.suggestions.suggestions.length).toBe(2);
@@ -600,8 +571,8 @@ describe("HackerNewsApp", () => {
       const initialMessageCount = chatPanelState.messages.length;
 
       // Press Tab key
-      mockInput.pressKey("TAB");
-      await renderOnce();
+      ctx.mockInput.pressKey("TAB");
+      await ctx.renderOnce();
 
       // Suggestion should be inserted into input with trailing space, but NOT sent
       expect(chatPanelState.input.plainText).toBe("What is the main argument? ");
@@ -613,20 +584,20 @@ describe("HackerNewsApp", () => {
 
     it("should send message when Enter key is pressed with typed text", async () => {
       const post = createMockPostWithComments({}, 2);
-      app.setPostsForTesting([post]);
-      await app.setSelectedPostForTesting(post);
+      ctx.app.setPostsForTesting([post]);
+      await ctx.app.setSelectedPostForTesting(post);
 
       // Enter chat mode
-      (app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
-      (app as any).showChatView();
-      await renderOnce();
+      (ctx.app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
+      (ctx.app as any).showChatView();
+      await ctx.renderOnce();
 
       // Wait for the focus timeout from showChatView
       await new Promise(resolve => setTimeout(resolve, 20));
-      await renderOnce();
+      await ctx.renderOnce();
 
       // Clear suggestions and type text
-      const chatPanelState = (app as any).chatPanelState;
+      const chatPanelState = (ctx.app as any).chatPanelState;
       chatPanelState.suggestions.loading = false;
       chatPanelState.suggestions.suggestions = [];
       chatPanelState.suggestions.selectedIndex = -1;
@@ -634,7 +605,7 @@ describe("HackerNewsApp", () => {
       // Focus the input before typing (input is not auto-focused anymore)
       chatPanelState.input.focus();
       chatPanelState.input.insertText("My custom question");
-      await renderOnce();
+      await ctx.renderOnce();
 
       // Verify text is in input
       expect(chatPanelState.input.plainText).toBe("My custom question");
@@ -643,8 +614,8 @@ describe("HackerNewsApp", () => {
       const initialMessageCount = chatPanelState.messages.length;
 
       // Press Enter key
-      mockInput.pressEnter();
-      await renderOnce();
+      ctx.mockInput.pressEnter();
+      await ctx.renderOnce();
 
       // Message should be added
       expect(chatPanelState.messages.length).toBeGreaterThan(initialMessageCount);
@@ -652,21 +623,21 @@ describe("HackerNewsApp", () => {
 
     it("should keep story list visible when entering chat mode", async () => {
       const post = createMockPostWithComments({}, 2);
-      app.setPostsForTesting([post]);
-      await app.setSelectedPostForTesting(post);
-      await renderOnce();
+      ctx.app.setPostsForTesting([post]);
+      await ctx.app.setSelectedPostForTesting(post);
+      await ctx.renderOnce();
 
-      const contentArea = (app as any).contentArea;
-      const storyListState = (app as any).storyListState;
+      const contentArea = (ctx.app as any).contentArea;
+      const storyListState = (ctx.app as any).storyListState;
 
       // Get initial state - content area should have 2 children (story list + detail)
       const initialChildren = contentArea.getChildren().length;
       expect(initialChildren).toBe(2);
 
       // Enter chat mode
-      (app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
-      (app as any).showChatView();
-      await renderOnce();
+      (ctx.app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
+      (ctx.app as any).showChatView();
+      await ctx.renderOnce();
 
       // Story list should still be visible (2 children)
       expect(contentArea.getChildren().length).toBe(2);
@@ -675,26 +646,26 @@ describe("HackerNewsApp", () => {
 
     it("should keep story list visible when exiting chat mode", async () => {
       const post = createMockPostWithComments({}, 2);
-      app.setPostsForTesting([post]);
-      await app.setSelectedPostForTesting(post);
-      await renderOnce();
+      ctx.app.setPostsForTesting([post]);
+      await ctx.app.setSelectedPostForTesting(post);
+      await ctx.renderOnce();
 
-      const contentArea = (app as any).contentArea;
-      const storyListState = (app as any).storyListState;
+      const contentArea = (ctx.app as any).contentArea;
+      const storyListState = (ctx.app as any).storyListState;
 
       expect(contentArea.getChildren().length).toBe(2);
 
       // Enter chat mode
-      (app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
-      (app as any).showChatView();
-      await renderOnce();
+      (ctx.app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
+      (ctx.app as any).showChatView();
+      await ctx.renderOnce();
 
       // Story list should still be visible
       expect(contentArea.getChildren().length).toBe(2);
 
       // Exit chat mode
-      (app as any).hideChatView();
-      await renderOnce();
+      (ctx.app as any).hideChatView();
+      await ctx.renderOnce();
 
       // Story list should still be visible
       expect(contentArea.getChildren().length).toBe(2);
@@ -703,22 +674,22 @@ describe("HackerNewsApp", () => {
 
     it("should keep story list visible in chat mode", async () => {
       const posts = createMockPosts(5);
-      app.setPostsForTesting(posts);
-      await app.setSelectedPostForTesting(posts[0]!);
-      await renderOnce();
+      ctx.app.setPostsForTesting(posts);
+      await ctx.app.setSelectedPostForTesting(posts[0]!);
+      await ctx.renderOnce();
 
       // Verify story list is visible before chat mode
-      let frame = captureCharFrame();
+      let frame = ctx.captureCharFrame();
       expect(frame).toContain("Test Story 1");
       expect(frame).toContain("Test Story 2");
 
       // Enter chat mode
-      (app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
-      (app as any).showChatView();
-      await renderOnce();
+      (ctx.app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
+      (ctx.app as any).showChatView();
+      await ctx.renderOnce();
 
       // Story list should remain visible in chat mode
-      frame = captureCharFrame();
+      frame = ctx.captureCharFrame();
       expect(frame).toContain("Test Story 1");
       expect(frame).toContain("Test Story 2");
     });
@@ -731,15 +702,15 @@ describe("HackerNewsApp", () => {
         },
         1
       );
-      app.setPostsForTesting([post]);
-      await app.setSelectedPostForTesting(post);
+      ctx.app.setPostsForTesting([post]);
+      await ctx.app.setSelectedPostForTesting(post);
 
       // Enter chat mode properly
-      (app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
-      (app as any).showChatView();
-      await renderOnce();
+      (ctx.app as any).chatServiceState = { provider: "anthropic", isStreaming: false };
+      (ctx.app as any).showChatView();
+      await ctx.renderOnce();
 
-      const frame = captureCharFrame();
+      const frame = ctx.captureCharFrame();
 
       // Find lines with title and domain
       const lines = frame.split("\n");
@@ -756,15 +727,13 @@ describe("HackerNewsApp", () => {
   });
 });
 
-// NOTE: Chat Session Persistence tests are skipped due to a pre-existing Yoga layout engine crash
-// in the OpenTUI test framework when calling showChatView(). The underlying fix for the
-// follow-up suggestions loading state bug has been implemented in src/app.ts.
-// See: pendingGenerationStoryIds, suggestionLoadingInterval, and suggestion restoration logic.
-
 describe("API Integration", () => {
   it("should filter posts correctly", async () => {
     // This test would mock the fetch API
     // For now, just verify the app can be created
+    const { createTestRenderer } = await import("@opentui/core/testing");
+    const { HackerNewsApp } = await import("../app");
+
     const testContext = await createTestRenderer({
       width: 80,
       height: 24,

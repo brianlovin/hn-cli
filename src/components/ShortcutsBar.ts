@@ -1,9 +1,15 @@
-import { BoxRenderable, TextRenderable, type RenderContext } from "@opentui/core";
+import { BoxRenderable, TextRenderable, type RenderContext, t, fg, underline } from "@opentui/core";
 import { COLORS } from "../theme";
 
 export interface ShortcutItem {
   key: string;
   desc: string;
+  rightAlign?: boolean;
+}
+
+// Check if a key can be shown inline (single letter that starts the description)
+function canShowInline(key: string, desc: string): boolean {
+  return key.length === 1 && desc.length > 0 && desc.toLowerCase().startsWith(key.toLowerCase());
 }
 
 export function createShortcutsBar(
@@ -24,38 +30,78 @@ export function createShortcutsBar(
     gap: 2,
   });
 
-  for (const { key, desc } of shortcuts) {
-    const shortcut = new BoxRenderable(ctx, {
-      flexDirection: "row",
-      gap: 1,
-    });
+  // Split shortcuts into left and right groups
+  const leftShortcuts = shortcuts.filter(s => !s.rightAlign);
+  const rightShortcuts = shortcuts.filter(s => s.rightAlign);
 
-    const keyText = new TextRenderable(ctx, {
-      content: key,
-      fg: COLORS.accent,
-    });
+  const renderShortcut = (item: ShortcutItem) => {
+    const { key, desc } = item;
+    if (canShowInline(key, desc)) {
+      // Show inline: first letter white + underlined, rest normal
+      const firstChar = desc[0] ?? "";
+      const text = new TextRenderable(ctx, {
+        content: t`${underline(fg(COLORS.textPrimary)(firstChar))}${desc.slice(1)}`,
+        fg: COLORS.textSecondary,
+      });
+      bar.add(text);
+    } else {
+      // Show key + desc separately
+      const shortcut = new BoxRenderable(ctx, {
+        flexDirection: "row",
+        gap: 1,
+      });
 
-    const descText = new TextRenderable(ctx, {
-      content: desc,
-      fg: COLORS.textSecondary,
-    });
+      const keyText = new TextRenderable(ctx, {
+        content: key,
+        fg: COLORS.textPrimary,
+      });
 
-    shortcut.add(keyText);
-    shortcut.add(descText);
-    bar.add(shortcut);
+      const descText = new TextRenderable(ctx, {
+        content: desc,
+        fg: COLORS.textSecondary,
+      });
+
+      shortcut.add(keyText);
+      shortcut.add(descText);
+      bar.add(shortcut);
+    }
+  };
+
+  // Render left-aligned shortcuts
+  for (const item of leftShortcuts) {
+    renderShortcut(item);
+  }
+
+  // Add spacer to push right-aligned items to the right
+  if (rightShortcuts.length > 0) {
+    const spacer = new BoxRenderable(ctx, { flexGrow: 1 });
+    bar.add(spacer);
+
+    // Render right-aligned shortcuts
+    for (const item of rightShortcuts) {
+      renderShortcut(item);
+    }
   }
 
   return bar;
 }
 
-export const MAIN_SHORTCUTS: ShortcutItem[] = [
-  { key: "j/k", desc: "stories" },
-  { key: "\u2318j/k", desc: "comments" },
+// Shortcuts shown in the story detail panel (bottom bar)
+export const DETAIL_SHORTCUTS: ShortcutItem[] = [
+  { key: "␣", desc: "next" },
   { key: "o", desc: "open" },
   { key: "c", desc: "chat" },
+  { key: "s", desc: "settings", rightAlign: true },
+];
+
+// Shortcuts shown at the bottom of the story list
+export const STORY_LIST_SHORTCUTS: ShortcutItem[] = [
+  { key: "j/k", desc: "navigate" },
 ];
 
 export const CHAT_SHORTCUTS: ShortcutItem[] = [
-  { key: "\u2318.", desc: "settings" },
   { key: "esc", desc: "close" },
 ];
+
+// Legacy export for backward compatibility
+export const MAIN_SHORTCUTS = DETAIL_SHORTCUTS;

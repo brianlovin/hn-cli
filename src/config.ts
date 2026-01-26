@@ -38,11 +38,40 @@ export interface Config {
 const CONFIG_DIR = join(homedir(), ".config", "hn-cli");
 const CONFIG_FILE = join(CONFIG_DIR, "config.json");
 
+/**
+ * Sanitize config to ensure consistency:
+ * - Model preferences only exist for providers with API keys
+ * - Provider preference only exists if that provider has a key
+ */
+function sanitizeConfig(config: Config): Config {
+  // Remove model preferences for providers without keys
+  if (!config.anthropicApiKey) {
+    delete config.anthropicModel;
+  }
+  if (!config.openaiApiKey) {
+    delete config.openaiModel;
+  }
+
+  // Remove provider preference if that provider has no key
+  if (config.provider) {
+    const hasKey = config.provider === "anthropic"
+      ? !!config.anthropicApiKey
+      : !!config.openaiApiKey;
+    if (!hasKey) {
+      delete config.provider;
+    }
+  }
+
+  return config;
+}
+
 export function loadConfig(): Config {
   try {
     if (existsSync(CONFIG_FILE)) {
       const content = readFileSync(CONFIG_FILE, "utf-8");
-      return JSON.parse(content);
+      const config = JSON.parse(content) as Config;
+      // Sanitize on load to clean up any orphaned preferences
+      return sanitizeConfig(config);
     }
   } catch {
     // If config is corrupted, return empty
@@ -54,7 +83,9 @@ export function saveConfig(config: Config): void {
   if (!existsSync(CONFIG_DIR)) {
     mkdirSync(CONFIG_DIR, { recursive: true });
   }
-  writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+  // Sanitize before saving to ensure consistency
+  const sanitized = sanitizeConfig(config);
+  writeFileSync(CONFIG_FILE, JSON.stringify(sanitized, null, 2));
 }
 
 export function getApiKey(provider: Provider): string | undefined {
@@ -121,11 +152,13 @@ export function clearApiKey(provider: Provider): void {
   const config = loadConfig();
   if (provider === "anthropic") {
     delete config.anthropicApiKey;
+    delete config.anthropicModel; // Clear model preference with key
     if (config.provider === "anthropic") {
       delete config.provider;
     }
   } else {
     delete config.openaiApiKey;
+    delete config.openaiModel; // Clear model preference with key
     if (config.provider === "openai") {
       delete config.provider;
     }
@@ -134,9 +167,6 @@ export function clearApiKey(provider: Provider): void {
 }
 
 export function clearAllApiKeys(): void {
-  const config = loadConfig();
-  delete config.anthropicApiKey;
-  delete config.openaiApiKey;
-  delete config.provider;
-  saveConfig(config);
+  // Clear everything - start fresh (currently Config only contains API-related settings)
+  saveConfig({});
 }
