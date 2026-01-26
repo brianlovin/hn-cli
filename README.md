@@ -2,31 +2,31 @@
 
 A terminal UI for browsing Hacker News, modeled after the HN reader on my [personal website](https://brianlovin.com/hn).
 
+## Quick Start
+
+```bash
+bunx @brianlovin/hn-cli
+```
+
+> Requires [Bun](https://bun.sh). Install with `curl -fsSL https://bun.sh/install | bash`
+
 ## Installation
 
 ```bash
-# Install Bun if you haven't already
-curl -fsSL https://bun.sh/install | bash
-
-# Run directly with bunx
+# Run directly (no install needed)
 bunx @brianlovin/hn-cli
 
 # Or install globally
 bun install -g @brianlovin/hn-cli
-hn-cli
+hn
 ```
 
 ### From source
 
 ```bash
-# Clone the repository
 git clone https://github.com/brianlovin/hn-cli.git
 cd hn-cli
-
-# Install dependencies
 bun install
-
-# Run the app
 bun run start
 ```
 
