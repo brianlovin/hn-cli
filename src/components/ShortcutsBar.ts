@@ -53,7 +53,6 @@ export const MAIN_SHORTCUTS: ShortcutItem[] = [
   { key: "\u2318j/k", desc: "comments" },
   { key: "o", desc: "open" },
   { key: "c", desc: "chat" },
-  { key: "q", desc: "quit" },
 ];
 
 export const CHAT_SHORTCUTS: ShortcutItem[] = [
