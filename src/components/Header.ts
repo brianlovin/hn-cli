@@ -2,10 +2,10 @@ import { BoxRenderable, TextRenderable, type RenderContext } from "@opentui/core
 import { COLORS } from "../theme";
 import { LOADING_CHARS } from "../utils";
 import type { UpdateInfo } from "../version";
-import { getUpdateCommand } from "../version";
+import { getUpdateCommand, currentVersion } from "../version";
 
 export interface HeaderCallbacks {
-  onOpenGitHub?: () => void;
+  // Currently unused, reserved for future header interactions
 }
 
 export interface HeaderState {
@@ -13,9 +13,10 @@ export interface HeaderState {
   loadingInterval: ReturnType<typeof setInterval> | null;
   loadingFrame: number;
   rightContainer: BoxRenderable;
-  githubLink: TextRenderable;
+  versionLabel: TextRenderable;
   updateContainer: BoxRenderable;
-  updateLabel: TextRenderable;
+  updateArrow: TextRenderable;
+  latestVersionLabel: TextRenderable;
   updateCommand: TextRenderable;
 }
 
@@ -60,7 +61,7 @@ export function createHeader(
 
   header.add(leftContainer);
 
-  // Right side container with loading indicator + (GitHub link OR update notification)
+  // Right side container with loading indicator + version + update notification
   const rightContainer = new BoxRenderable(ctx, {
     flexDirection: "row",
     gap: 2,
@@ -74,31 +75,28 @@ export function createHeader(
   });
   rightContainer.add(loadingIndicator);
 
-  // GitHub link (shown by default)
-  const githubLink = new TextRenderable(ctx, {
-    content: "brianlovin/hn-cli",
+  // Version label (shown by default)
+  const versionLabel = new TextRenderable(ctx, {
+    content: `v${currentVersion}`,
     fg: COLORS.textSecondary,
-    onMouseDown: () => {
-      callbacks.onOpenGitHub?.();
-    },
-    onMouseOver: () => {
-      (githubLink as any).fg = COLORS.accent;
-    },
-    onMouseOut: () => {
-      (githubLink as any).fg = COLORS.textSecondary;
-    },
   });
-  rightContainer.add(githubLink);
+  rightContainer.add(versionLabel);
 
-  // Update notification container (hidden initially, replaces GitHub link when update available)
+  // Update notification container (hidden initially, shown when update available)
+  // Shows: "v0.3.0 → v0.4.0  bun install -g ..."
   const updateContainer = new BoxRenderable(ctx, {
     flexDirection: "row",
     alignItems: "center",
     gap: 1,
   });
 
-  const updateLabel = new TextRenderable(ctx, {
-    content: "update available",
+  const updateArrow = new TextRenderable(ctx, {
+    content: "→",
+    fg: COLORS.textSecondary,
+  });
+
+  const latestVersionLabel = new TextRenderable(ctx, {
+    content: "",
     fg: COLORS.success,
   });
 
@@ -107,7 +105,8 @@ export function createHeader(
     fg: COLORS.textSecondary,
   });
 
-  updateContainer.add(updateLabel);
+  updateContainer.add(updateArrow);
+  updateContainer.add(latestVersionLabel);
   updateContainer.add(updateCommand);
   // Note: updateContainer is NOT added to rightContainer initially
 
@@ -118,9 +117,10 @@ export function createHeader(
     loadingInterval: null,
     loadingFrame: 0,
     rightContainer,
-    githubLink,
+    versionLabel,
     updateContainer,
-    updateLabel,
+    updateArrow,
+    latestVersionLabel,
     updateCommand,
   };
 
@@ -132,8 +132,8 @@ export function showUpdateNotification(
   updateInfo: UpdateInfo | null,
 ): void {
   if (updateInfo?.hasUpdate) {
-    // Hide GitHub link and show update notification
-    state.rightContainer.remove(state.githubLink.id);
+    // Show update notification: "v0.3.0 → v0.4.0  bun install -g ..."
+    state.latestVersionLabel.content = `v${updateInfo.latestVersion}`;
     state.updateCommand.content = getUpdateCommand();
     // Only add if not already present
     const children = state.rightContainer.getChildren();
@@ -142,14 +142,8 @@ export function showUpdateNotification(
       state.rightContainer.add(state.updateContainer);
     }
   } else {
-    // Hide update notification and show GitHub link
+    // Hide update notification (version label stays visible)
     state.rightContainer.remove(state.updateContainer.id);
-    // Only add if not already present
-    const children = state.rightContainer.getChildren();
-    const hasGithubLink = children.some(child => child.id === state.githubLink.id);
-    if (!hasGithubLink) {
-      state.rightContainer.add(state.githubLink);
-    }
   }
 }
 
