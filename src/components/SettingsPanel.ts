@@ -138,9 +138,12 @@ export function renderSettings(
     itemBox.add(label);
 
     if (!hasKey) {
+      const apiKeyUrl = listItem.item.provider === "anthropic"
+        ? "console.anthropic.com"
+        : "platform.openai.com";
       const hint = new TextRenderable(ctx, {
-        content: "Add API Key",
-        fg: COLORS.textSecondary,
+        content: apiKeyUrl,
+        fg: COLORS.textTertiary,
       });
       itemBox.add(hint);
     }
@@ -233,8 +236,17 @@ export function renderSettings(
 
   container.add(new BoxRenderable(ctx, { height: 2 }));
 
+  // Check if any provider is missing a key (to show Tab hint)
+  const hasAnthropic = !!getApiKey("anthropic");
+  const hasOpenAI = !!getApiKey("openai");
+  const showTabHint = !hasAnthropic || !hasOpenAI;
+
+  const hintText = showTabHint
+    ? "↑/↓ navigate  Enter select  Tab open URL  Esc back"
+    : "↑/↓ navigate  Enter select  Esc back";
+
   const hint = new TextRenderable(ctx, {
-    content: "↑/↓ navigate  Enter select  Esc back",
+    content: hintText,
     fg: COLORS.textSecondary,
   });
   container.add(hint);
@@ -304,4 +316,25 @@ export function selectSettingsItem(
 
 export function goBackInSettings(_state: SettingsState): boolean {
   return false; // Always exit settings on Esc
+}
+
+/**
+ * Returns the API key URL for the currently selected provider if it doesn't have a key.
+ * Returns null if the selection is not a provider or if the provider already has a key.
+ */
+export function getSelectedProviderUrl(
+  state: SettingsState,
+  chatProvider: Provider,
+): string | null {
+  const items = getSettingsList(chatProvider);
+  const selected = items[state.selectedIndex];
+  if (!selected) return null;
+
+  if (selected.item.type === "provider" && !selected.item.hasKey) {
+    return selected.item.provider === "anthropic"
+      ? "https://console.anthropic.com"
+      : "https://platform.openai.com";
+  }
+
+  return null;
 }
