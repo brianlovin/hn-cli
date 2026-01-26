@@ -346,6 +346,24 @@ export class HackerNewsApp {
       }
     }
 
+    // Handle Tab key to insert suggestion into input for editing
+    if (
+      key.name === "tab" &&
+      suggestionsState.selectedIndex >= 0 &&
+      suggestionsState.suggestions.length > 0
+    ) {
+      const suggestion = suggestionsState.suggestions[suggestionsState.selectedIndex];
+      if (suggestion && this.chatPanelState.input) {
+        this.chatPanelState.input.clear();
+        this.chatPanelState.input.insertText(suggestion + " ");
+        // Clear suggestions so user can type freely
+        suggestionsState.suggestions = [];
+        suggestionsState.selectedIndex = -1;
+        renderSuggestions(this.ctx, suggestionsState);
+        return;
+      }
+    }
+
     // Handle Enter key for chat submission
     if ((key.name === "return" || key.name === "enter") && !key.shift) {
       if (this.chatPanelState.input && this.chatPanelState.input.plainText.trim()) {

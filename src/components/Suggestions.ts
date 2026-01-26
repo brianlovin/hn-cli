@@ -100,6 +100,16 @@ export function renderSuggestions(
     });
     row.add(text);
 
+    // Show hint for selected suggestion
+    if (isSelected) {
+      const hint = new TextRenderable(ctx, {
+        id: `suggestion-hint-${index}`,
+        content: "  tab to type",
+        fg: COLORS.textVeryDim,
+      });
+      row.add(hint);
+    }
+
     state.container.add(row);
   }
 }
