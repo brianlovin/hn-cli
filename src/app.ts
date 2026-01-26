@@ -249,7 +249,9 @@ export class HackerNewsApp {
     this.posts = cached.posts;
     this.storiesFetchedAt = cached.storiesFetchedAt;
 
-    // Merge session chat cache with persistent chat cache (persistent takes precedence for existing entries)
+    // Merge session chat cache with persistent chat cache.
+    // Persistent takes precedence because: on reboot, session cache (in tmpdir) is cleared
+    // while persistent cache (in ~/.cache) survives. On clean shutdown, both are identical.
     const sessionChats = cacheToSessions(cached.chatSessions) as Map<number, SavedChatSession>;
     this.savedChatSessions = persistentChatSessions
       ? new Map([...sessionChats, ...persistentChatSessions]) as Map<number, SavedChatSession>
@@ -1257,6 +1259,15 @@ export class HackerNewsApp {
             stopTypingIndicator(this.chatPanelState);
           }
           this.stopAiIndicator(storyIndex);
+          // Save current chat session before persisting cache
+          if (this.selectedPost && this.chatPanelState) {
+            this.savedChatSessions.set(this.selectedPost.id, {
+              messages: [...this.chatPanelState.messages],
+              suggestions: [...this.chatPanelState.suggestions.suggestions],
+              originalSuggestions: [...this.chatPanelState.suggestions.originalSuggestions],
+              followUpCount: this.followUpCount,
+            });
+          }
           this.saveToCache();
           this.generateFollowUpQuestionsIfNeeded();
         },

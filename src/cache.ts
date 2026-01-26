@@ -9,15 +9,30 @@ const CACHE_DIR = join(tmpdir(), "hn-cli-cache");
 const CACHE_FILE = join(CACHE_DIR, "state.json");
 
 // Persistent cache for AI-generated content (survives reboots)
-const PERSISTENT_CACHE_DIR = join(homedir(), ".cache", "hn-cli");
-const TLDR_CACHE_FILE = join(PERSISTENT_CACHE_DIR, "tldr-cache.json");
-const CHAT_CACHE_FILE = join(PERSISTENT_CACHE_DIR, "chat-cache.json");
+// These can be overridden for testing via setPersistentCachePaths()
+let PERSISTENT_CACHE_DIR = join(homedir(), ".cache", "hn-cli");
+let TLDR_CACHE_FILE = join(PERSISTENT_CACHE_DIR, "tldr-cache.json");
+let CHAT_CACHE_FILE = join(PERSISTENT_CACHE_DIR, "chat-cache.json");
+
+// For testing: allows overriding cache paths
+export function setPersistentCachePaths(cacheDir: string): void {
+  PERSISTENT_CACHE_DIR = cacheDir;
+  TLDR_CACHE_FILE = join(cacheDir, "tldr-cache.json");
+  CHAT_CACHE_FILE = join(cacheDir, "chat-cache.json");
+}
+
+// For testing: resets cache paths to defaults
+export function resetPersistentCachePaths(): void {
+  PERSISTENT_CACHE_DIR = join(homedir(), ".cache", "hn-cli");
+  TLDR_CACHE_FILE = join(PERSISTENT_CACHE_DIR, "tldr-cache.json");
+  CHAT_CACHE_FILE = join(PERSISTENT_CACHE_DIR, "chat-cache.json");
+}
 
 // Stories cache expires after 5 minutes
 const STORIES_TTL_MS = 5 * 60 * 1000;
 
 // TLDR and chat cache expires after 7 days
-const AI_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+export const AI_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export interface CachedChatSession {
   messages: Array<{ role: "user" | "assistant"; content: string }>;
@@ -261,7 +276,12 @@ export function loadChatCache(): Map<number, CachedChatSession> {
       const age = now - session.cachedAt;
       if (age <= AI_CACHE_TTL_MS) {
         // Strip cachedAt when returning to match CachedChatSession interface
-        const { cachedAt, ...sessionData } = session;
+        const sessionData: CachedChatSession = {
+          messages: session.messages,
+          suggestions: session.suggestions,
+          originalSuggestions: session.originalSuggestions,
+          followUpCount: session.followUpCount,
+        };
         map.set(Number(id), sessionData);
       }
     }
