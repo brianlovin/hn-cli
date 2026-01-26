@@ -14,7 +14,8 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          # Pin to specific version to avoid Bun segfault bugs on Linux
+          # Pin to 1.1.45 - timer cleanup crashes were introduced in 1.2.0+
+          # Bun segfaults during test cleanup on Linux due to timer callback bugs
           # See: https://github.com/oven-sh/bun/issues/22452
           bun-version: "1.1.45"
 
