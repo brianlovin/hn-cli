@@ -45,7 +45,8 @@ type SettingsItemType =
   | { type: "telemetry"; enabled: boolean }
   | { type: "action"; action: "clear_keys" | "reset_filters" }
   | { type: "category_header"; label: string }
-  | { type: "filter_setting"; key: keyof FilterSettings; value: number; isModified: boolean };
+  | { type: "filter_setting"; key: keyof FilterSettings; value: number; isModified: boolean }
+  | { type: "setting_subtitle"; text: string };
 
 interface SettingsListItem {
   item: SettingsItemType;
@@ -158,13 +159,22 @@ function getSettingsList(chatProvider: Provider): SettingsListItem[] {
       enabled: false,
     });
 
-    // Add each setting in this category
+    // Add each setting in this category with subtitle
     for (const key of category.settings) {
       const value = settings[key];
       const isModified = value !== DEFAULT_SETTINGS[key];
+      const range = SETTING_RANGES[key];
+
+      // Setting row (selectable)
       items.push({
         item: { type: "filter_setting", key, value, isModified },
         enabled: true,
+      });
+
+      // Subtitle row (not selectable)
+      items.push({
+        item: { type: "setting_subtitle", text: range.description },
+        enabled: false,
       });
     }
   }
@@ -357,6 +367,29 @@ export function renderSettings(
       }
 
       state.content.add(itemBox);
+    }
+
+    // Render setting subtitles
+    if (listItem.item.type === "setting_subtitle") {
+      const subtitleBox = new BoxRenderable(ctx, {
+        flexDirection: "row",
+        marginBottom: 1,
+      });
+
+      // Indent to align with setting labels (space for indicator + gap)
+      const indent = new TextRenderable(ctx, {
+        content: "  ",
+        fg: COLORS.textSecondary,
+      });
+      subtitleBox.add(indent);
+
+      const subtitleText = new TextRenderable(ctx, {
+        content: listItem.item.text,
+        fg: COLORS.textSecondary,
+      });
+      subtitleBox.add(subtitleText);
+
+      state.content.add(subtitleBox);
     }
   }
 

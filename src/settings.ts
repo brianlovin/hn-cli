@@ -73,7 +73,7 @@ export const SETTING_RANGES: Record<keyof FilterSettings, SettingRange> = {
     max: 50,
     step: 1,
     label: "Max Stories",
-    description: "Maximum number of stories to display",
+    description: "How many stories to fetch when the app starts",
   },
   fetchLimit: {
     min: 50,
@@ -87,21 +87,21 @@ export const SETTING_RANGES: Record<keyof FilterSettings, SettingRange> = {
     max: 168,
     step: 1,
     label: "Time Window (hours)",
-    description: "Only show posts from the last N hours",
+    description: "Only show stories that are trending in this window",
   },
   minPoints: {
     min: 0,
     max: 500,
     step: 10,
     label: "Min Points",
-    description: "Minimum points for a story to appear",
+    description: "The minimum number of votes required",
   },
   minComments: {
     min: 0,
     max: 100,
     step: 5,
     label: "Min Comments",
-    description: "Minimum comments for a story to appear",
+    description: "The minimum number of comments required",
   },
   commentWeight: {
     min: 0,
@@ -122,21 +122,21 @@ export const SETTING_RANGES: Record<keyof FilterSettings, SettingRange> = {
     max: 50,
     step: 1,
     label: "Root Comments",
-    description: "Maximum root-level comments per story",
+    description: "How many root comments to display per story",
   },
   maxChildComments: {
     min: 1,
     max: 20,
     step: 1,
     label: "Child Comments",
-    description: "Maximum replies per comment",
+    description: "The maximum number of child comments to display per root comment",
   },
   maxCommentLevel: {
     min: 1,
     max: 10,
     step: 1,
     label: "Nesting Depth",
-    description: "Maximum comment nesting levels",
+    description: "The maximum depth of nested replies to display",
   },
   storiesTtlMinutes: {
     min: 1,
@@ -164,20 +164,21 @@ export const SETTING_CATEGORIES: SettingCategory[] = [
     settings: ["maxPosts", "hoursWindow", "minPoints", "minComments"],
   },
   {
-    key: "ranking",
-    label: "Ranking",
-    settings: ["commentWeight", "recencyBonusMax"],
-  },
-  {
     key: "comments",
     label: "Comments",
     settings: ["maxRootComments", "maxChildComments", "maxCommentLevel"],
   },
-  {
-    key: "advanced",
-    label: "Advanced",
-    settings: ["fetchLimit", "storiesTtlMinutes"],
-  },
+  // Hidden for now - these need more explanation:
+  // {
+  //   key: "ranking",
+  //   label: "Ranking",
+  //   settings: ["commentWeight", "recencyBonusMax"],
+  // },
+  // {
+  //   key: "advanced",
+  //   label: "Advanced",
+  //   settings: ["fetchLimit", "storiesTtlMinutes"],
+  // },
 ];
 
 // ============================================================================
