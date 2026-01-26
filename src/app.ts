@@ -40,6 +40,8 @@ import {
   renderChatMessages,
   scrollChatToBottom,
   addChatMessage,
+  startTypingIndicator,
+  stopTypingIndicator,
   type ChatPanelState,
 } from "./components/ChatPanel";
 import { renderSuggestions, navigateSuggestion } from "./components/Suggestions";
@@ -630,6 +632,11 @@ export class HackerNewsApp {
 
     if (!this.selectedPost) return;
 
+    // Start typing indicator animation
+    startTypingIndicator(this.ctx, this.chatPanelState, this.chatServiceState.provider);
+
+    let receivedFirstText = false;
+
     await streamAIResponse(
       this.chatServiceState,
       this.chatPanelState.messages,
@@ -637,15 +644,26 @@ export class HackerNewsApp {
       this.selectedPost,
       {
         onText: (text) => {
+          // Stop typing indicator on first text
+          if (!receivedFirstText && this.chatPanelState) {
+            receivedFirstText = true;
+            stopTypingIndicator(this.chatPanelState);
+          }
           if (this.chatPanelState?.messages[assistantMsgIndex]) {
             this.chatPanelState.messages[assistantMsgIndex].content = text;
             renderChatMessages(this.ctx, this.chatPanelState, this.chatServiceState!.provider);
           }
         },
         onComplete: () => {
+          if (this.chatPanelState) {
+            stopTypingIndicator(this.chatPanelState);
+          }
           this.generateFollowUpQuestionsIfNeeded();
         },
         onError: (error) => {
+          if (this.chatPanelState) {
+            stopTypingIndicator(this.chatPanelState);
+          }
           const providerName =
             this.chatServiceState?.provider === "anthropic" ? "Anthropic" : "OpenAI";
           if (this.chatPanelState?.messages[assistantMsgIndex]) {
@@ -835,6 +853,11 @@ export class HackerNewsApp {
     this.settingsMode = true;
     this.settingsState = initSettingsState();
 
+    // Blur the chat input to remove cursor
+    if (this.chatPanelState?.input) {
+      this.chatPanelState.input.blur();
+    }
+
     // Remove chat components
     for (const child of this.storyDetailState.panel.getChildren()) {
       this.storyDetailState.panel.remove(child.id);
@@ -862,6 +885,9 @@ export class HackerNewsApp {
   private hideSettings() {
     this.settingsMode = false;
 
+    // Preserve existing messages before recreating chat panel
+    const existingMessages = this.chatPanelState?.messages || [];
+
     // Remove settings components
     for (const child of this.storyDetailState.panel.getChildren()) {
       this.storyDetailState.panel.remove(child.id);
@@ -874,17 +900,29 @@ export class HackerNewsApp {
         onSubmit: () => this.sendChatMessage(),
       });
 
+      // Restore existing messages
+      this.chatPanelState.messages = existingMessages;
+
       for (const child of this.chatPanelState.panel.getChildren()) {
         this.storyDetailState.panel.add(child);
       }
 
-      // Re-focus chat input
+      // Render messages and focus input
+      renderChatMessages(this.ctx, this.chatPanelState, this.chatServiceState.provider);
+
       if (this.chatPanelState.input) {
         this.chatPanelState.input.focus();
         this.chatPanelState.input.clear();
       }
 
-      renderSuggestions(this.ctx, this.chatPanelState.suggestions);
+      // Regenerate follow-up questions if there are existing messages
+      if (existingMessages.length > 1) {
+        // Reset follow-up count to allow regeneration with new model
+        this.followUpCount = 0;
+        this.generateFollowUpQuestionsIfNeeded();
+      } else {
+        renderSuggestions(this.ctx, this.chatPanelState.suggestions);
+      }
     }
 
     this.settingsState = null;

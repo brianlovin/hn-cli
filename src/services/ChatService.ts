@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import type { HackerNewsPost, HackerNewsComment } from "../types";
-import { type Provider, getApiKey, getModel } from "../config";
+import { type Provider, getApiKey, getModel, CHEAP_ANTHROPIC_MODEL, CHEAP_OPENAI_MODEL } from "../config";
 import { stripHtml } from "../utils";
 import { log } from "../logger";
 import type { ChatMessage } from "../components/ChatPanel";
@@ -27,7 +27,7 @@ export function initChatServiceState(provider: Provider): ChatServiceState {
 export function buildStoryContext(post: HackerNewsPost): string {
   const storyUrl = post.url || `https://news.ycombinator.com/item?id=${post.id}`;
 
-  let context = `# Hacker News Story\n\n`;
+  let context = `# Story Being Discussed\n\n`;
   context += `**Title:** ${post.title}\n`;
   context += `**URL:** ${storyUrl}\n`;
   if (post.domain) context += `**Domain:** ${post.domain}\n`;
@@ -36,11 +36,12 @@ export function buildStoryContext(post: HackerNewsPost): string {
   context += `**Comments:** ${post.comments_count}\n\n`;
 
   if (post.content) {
-    context += `## Story Content\n\n${stripHtml(post.content)}\n\n`;
+    context += `## Story Text\n\n${stripHtml(post.content)}\n\n`;
   }
 
   if (post.comments && post.comments.length > 0) {
-    context += `## Comments\n\n`;
+    context += `# Hacker News Discussion\n\n`;
+    context += `The following are comments from the Hacker News community discussing this story:\n\n`;
     context += formatCommentsForContext(post.comments);
   }
 
@@ -94,21 +95,25 @@ export async function streamAIResponse(
   }
 
   const storyUrl = post.url || "";
-  const systemPrompt = `You are helping a user understand and discuss a Hacker News story and its comments. Here is the full context:
+
+  const systemPrompt = `You are helping a user understand and discuss a Hacker News story.
 
 ${state.storyContext}
 
 ---
 
-The user is reading this in a terminal app and wants to discuss it with you. Be concise but insightful. If they ask about the article content and it would help to have more context, you can suggest they share more details or you can work with what's in the comments.
+IMPORTANT CONTEXT DISTINCTION:
+- The "Story Being Discussed" section above contains metadata about the linked article/content
+- The "Hacker News Discussion" section contains community comments ABOUT that story
+- If the user asks about the original article/video content, use web search to fetch and read the URL: ${storyUrl}
 
-${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
+The user is reading this in a terminal app. Be concise but insightful. When you search the web for article content, clearly distinguish between what's in the article versus what's being discussed in the HN comments.`;
 
   try {
     if (state.provider === "anthropic") {
-      await streamAnthropicResponse(state, messages, userMessage, systemPrompt, callbacks);
+      await streamAnthropicResponse(state, messages, userMessage, systemPrompt, storyUrl, callbacks);
     } else {
-      await streamOpenAIResponse(state, messages, userMessage, systemPrompt, callbacks);
+      await streamOpenAIResponse(state, messages, userMessage, systemPrompt, storyUrl, callbacks);
     }
   } catch (error) {
     callbacks.onError(error instanceof Error ? error : new Error(String(error)));
@@ -122,6 +127,7 @@ async function streamAnthropicResponse(
   messages: ChatMessage[],
   userMessage: string,
   systemPrompt: string,
+  storyUrl: string,
   callbacks: StreamCallbacks,
 ): Promise<void> {
   // Initialize Anthropic client if needed
@@ -130,10 +136,23 @@ async function streamAnthropicResponse(
     state.anthropic = new Anthropic({ apiKey });
   }
 
+  // Build the tools array with web search if we have a story URL
+  // Cast through unknown since the web search tool type isn't fully typed in the SDK yet
+  const tools: Anthropic.Messages.Tool[] = storyUrl
+    ? [
+        {
+          type: "web_search_20250305",
+          name: "web_search",
+          max_uses: 3,
+        } as unknown as Anthropic.Messages.Tool,
+      ]
+    : [];
+
   const stream = state.anthropic.messages.stream({
     model: getModel("anthropic") as string,
     max_tokens: 4096,
     system: systemPrompt,
+    tools: tools.length > 0 ? tools : undefined,
     messages: messages
       .slice(0, -1)
       .map((m) => ({
@@ -159,6 +178,7 @@ async function streamOpenAIResponse(
   messages: ChatMessage[],
   userMessage: string,
   systemPrompt: string,
+  storyUrl: string,
   callbacks: StreamCallbacks,
 ): Promise<void> {
   log("[openai-stream] Starting stream...");
@@ -174,6 +194,41 @@ async function streamOpenAIResponse(
   log("[openai-stream] Model:", model);
   log("[openai-stream] Message count:", messages.length);
 
+  // Use Responses API with streaming and web search for OpenAI
+  if (storyUrl) {
+    try {
+      log("[openai-stream] Using Responses API stream with web_search tool");
+      const stream = state.openai.responses.stream({
+        model,
+        tools: [{ type: "web_search" }],
+        input: [
+          { role: "developer", content: systemPrompt },
+          ...messages.slice(0, -1).map((m) => ({
+            role: m.role as "user" | "assistant",
+            content: m.content,
+          })),
+          { role: "user", content: userMessage },
+        ],
+      });
+
+      // Listen for text delta events (snapshot contains accumulated text)
+      stream.on("response.output_text.delta", (event) => {
+        callbacks.onText(event.snapshot);
+      });
+
+      // Wait for stream to complete
+      await stream.finalResponse();
+      log("[openai-stream] Responses API stream complete");
+      callbacks.onComplete();
+      return;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log("[openai-stream] Responses API failed, falling back to chat completions without web search. Error:", errorMessage);
+      // Fall through to chat completions (web search will not be available)
+    }
+  }
+
+  // Fallback to Chat Completions (no web search capability)
   const stream = await state.openai.chat.completions.create({
     model,
     max_completion_tokens: 4096,
@@ -226,19 +281,19 @@ ${commentsPreview}`;
   try {
     let questions: string[] = [];
 
+    // Use cheap models for suggestion generation to save cost
     if (state.provider === "anthropic") {
-      log("[suggestions] Using Anthropic API");
+      log("[suggestions] Using Anthropic API with cheap model");
       if (!state.anthropic) {
         const apiKey = getApiKey("anthropic");
         log("[suggestions] API key exists:", !!apiKey);
         state.anthropic = new Anthropic({ apiKey });
       }
 
-      const model = getModel("anthropic") as string;
-      log("[suggestions] Model:", model);
+      log("[suggestions] Model:", CHEAP_ANTHROPIC_MODEL);
 
       const response = await state.anthropic.messages.create({
-        model,
+        model: CHEAP_ANTHROPIC_MODEL,
         max_tokens: 1024,
         messages: [{ role: "user", content: prompt }],
       });
@@ -252,19 +307,18 @@ ${commentsPreview}`;
         .filter((q: string) => q.trim())
         .slice(0, 3);
     } else {
-      log("[suggestions] Using OpenAI API");
+      log("[suggestions] Using OpenAI API with cheap model");
       if (!state.openai) {
         const apiKey = getApiKey("openai");
         log("[suggestions] API key exists:", !!apiKey);
         state.openai = new OpenAI({ apiKey });
       }
 
-      const model = getModel("openai") as string;
-      log("[suggestions] Model:", model);
+      log("[suggestions] Model:", CHEAP_OPENAI_MODEL);
 
       log("[suggestions] Making OpenAI request...");
       const response = await state.openai.chat.completions.create({
-        model,
+        model: CHEAP_OPENAI_MODEL,
         max_completion_tokens: 1024,
         messages: [{ role: "user", content: prompt }],
       });
@@ -318,6 +372,7 @@ ${recentMessages}
 Return ONLY the 3 questions, one per line, no numbering or bullets.`;
 
   try {
+    // Use cheap models for follow-up generation to save cost
     if (state.provider === "anthropic") {
       if (!state.anthropic) {
         const apiKey = getApiKey("anthropic");
@@ -325,7 +380,7 @@ Return ONLY the 3 questions, one per line, no numbering or bullets.`;
       }
 
       const response = await state.anthropic.messages.create({
-        model: getModel("anthropic") as string,
+        model: CHEAP_ANTHROPIC_MODEL,
         max_tokens: 256,
         messages: [{ role: "user", content: prompt }],
       });
@@ -344,7 +399,7 @@ Return ONLY the 3 questions, one per line, no numbering or bullets.`;
       }
 
       const response = await state.openai.chat.completions.create({
-        model: getModel("openai") as string,
+        model: CHEAP_OPENAI_MODEL,
         max_completion_tokens: 256,
         messages: [{ role: "user", content: prompt }],
       });

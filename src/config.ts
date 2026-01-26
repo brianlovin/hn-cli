@@ -22,6 +22,11 @@ export const OPENAI_MODELS: { id: OpenAIModel; name: string }[] = [
 export const DEFAULT_ANTHROPIC_MODEL: AnthropicModel = "claude-haiku-4-5-20251001";
 export const DEFAULT_OPENAI_MODEL: OpenAIModel = "gpt-5-nano-2025-08-07";
 
+// Cheap models used for auxiliary tasks (suggestions, follow-ups) to save cost.
+// Currently same as defaults; change these to use smaller models if cost becomes a concern.
+export const CHEAP_ANTHROPIC_MODEL: AnthropicModel = "claude-haiku-4-5-20251001";
+export const CHEAP_OPENAI_MODEL: OpenAIModel = "gpt-5-nano-2025-08-07";
+
 export interface Config {
   provider?: Provider;
   anthropicApiKey?: string;
