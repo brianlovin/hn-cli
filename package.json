@@ -5,7 +5,7 @@
   "module": "src/index.ts",
   "type": "module",
   "bin": {
-    "hn-cli": "./dist/cli.js"
+    "hn": "./dist/cli.js"
   },
   "files": [
     "dist"
