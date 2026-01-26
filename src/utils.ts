@@ -19,9 +19,9 @@ export function truncateText(text: string, maxLength: number): string {
 export function stripHtml(html: string): string {
   return (
     html
-      // Handle paragraphs - add double newline between them
+      // Handle paragraphs - HN uses <p> as paragraph separator (often without closing tags)
       .replace(/<\/p>\s*<p>/g, "\n\n")
-      .replace(/<p>/g, "")
+      .replace(/<p>/g, "\n\n")
       .replace(/<\/p>/g, "\n\n")
       .replace(/<br\s*\/?>/g, "\n")
       .replace(/<a[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/g, "$2 ($1)")
