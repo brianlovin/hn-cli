@@ -95,6 +95,10 @@ import {
   cacheToSessions,
   viewModesToCache,
   cacheToViewModes,
+  loadTLDRCache,
+  saveTLDRCache,
+  loadChatCache,
+  saveChatCache,
   type AppCache,
   type CachedChatSession,
   type StoryViewMode,
@@ -206,6 +210,10 @@ export class HackerNewsApp {
       savedAt: Date.now(),
     };
     saveCache(cache);
+
+    // Also save persistent caches (TLDR and chat history with 7-day expiry)
+    saveTLDRCache(this.tldrCache);
+    saveChatCache(this.savedChatSessions as Map<number, CachedChatSession>);
   }
 
   async initialize(options: InitializeOptions = {}) {
@@ -215,8 +223,13 @@ export class HackerNewsApp {
     this.setupLayout();
     this.setupKeyboardHandlers();
 
-    // If a specific story is requested, skip cache and load fresh
+    // Load persistent caches (TLDR and chat history with 7-day expiry)
+    this.tldrCache = loadTLDRCache();
+    const persistentChatSessions = loadChatCache();
+
+    // If a specific story is requested, skip session cache and load fresh
     if (this.requestedStoryId) {
+      this.savedChatSessions = persistentChatSessions;
       await this.loadPosts();
       return;
     }
@@ -224,16 +237,26 @@ export class HackerNewsApp {
     // Try to restore from cache first
     const cached = loadCache();
     if (cached && cached.posts.length > 0) {
-      await this.restoreFromCache(cached);
+      await this.restoreFromCache(cached, persistentChatSessions);
     } else {
+      // Even if no session cache, restore persistent chat sessions
+      this.savedChatSessions = persistentChatSessions;
       await this.loadPosts();
     }
   }
 
-  private async restoreFromCache(cached: AppCache) {
+  private async restoreFromCache(cached: AppCache, persistentChatSessions?: Map<number, CachedChatSession>) {
     this.posts = cached.posts;
     this.storiesFetchedAt = cached.storiesFetchedAt;
-    this.savedChatSessions = cacheToSessions(cached.chatSessions) as Map<number, SavedChatSession>;
+
+    // Merge session chat cache with persistent chat cache.
+    // Persistent takes precedence because: on reboot, session cache (in tmpdir) is cleared
+    // while persistent cache (in ~/.cache) survives. On clean shutdown, both are identical.
+    const sessionChats = cacheToSessions(cached.chatSessions) as Map<number, SavedChatSession>;
+    this.savedChatSessions = persistentChatSessions
+      ? new Map([...sessionChats, ...persistentChatSessions]) as Map<number, SavedChatSession>
+      : sessionChats;
+
     this.storyViewModes = cached.storyViewModes
       ? cacheToViewModes(cached.storyViewModes)
       : new Map();
@@ -882,6 +905,8 @@ export class HackerNewsApp {
         this.tldrLoadingStoryId = null;
         this.stopTldrLoadingAnimation();
         this.stopAiIndicator(storyIndex);
+        // Persist TLDR cache immediately
+        saveTLDRCache(this.tldrCache);
         // Only rerender if we're viewing the story that just completed
         if (this.selectedPost?.id === storyId) {
           this.rerenderCurrentStory();
@@ -1234,6 +1259,15 @@ export class HackerNewsApp {
             stopTypingIndicator(this.chatPanelState);
           }
           this.stopAiIndicator(storyIndex);
+          // Save current chat session before persisting cache
+          if (this.selectedPost && this.chatPanelState) {
+            this.savedChatSessions.set(this.selectedPost.id, {
+              messages: [...this.chatPanelState.messages],
+              suggestions: [...this.chatPanelState.suggestions.suggestions],
+              originalSuggestions: [...this.chatPanelState.suggestions.originalSuggestions],
+              followUpCount: this.followUpCount,
+            });
+          }
           this.saveToCache();
           this.generateFollowUpQuestionsIfNeeded();
         },
