@@ -89,6 +89,21 @@ While in chat mode, press `,` to access settings where you can:
 bun install          # Install dependencies
 bun run start        # Run the app
 bun run dev          # Run with hot reload
+bun run dev:update   # Run with simulated update notification
+```
+
+### Testing the update notification
+
+To test the update notification UI without publishing a new version:
+
+```bash
+bun run dev:update
+```
+
+You can also customize the simulated versions:
+
+```bash
+HN_SIMULATE_VERSION=0.2.0 HN_SIMULATE_LATEST=0.5.0 bun run start
 ```
 
 ### Testing
