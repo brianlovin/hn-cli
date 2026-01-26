@@ -19,6 +19,7 @@ export function createShortcutsBar(
   const bar = new BoxRenderable(ctx, {
     width: "100%",
     height: 2,
+    flexShrink: 0,
     flexDirection: "row",
     alignItems: "center",
     paddingLeft: 2,

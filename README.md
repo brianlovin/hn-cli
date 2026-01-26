@@ -2,14 +2,6 @@
 
 A terminal UI for browsing Hacker News, modeled after the HN reader on my [personal website](https://brianlovin.com/hn).
 
-## Quick Start
-
-```bash
-bunx @brianlovin/hn-cli
-```
-
-> Requires [Bun](https://bun.sh). Install with `curl -fsSL https://bun.sh/install | bash`
-
 ## Installation
 
 ```bash
@@ -34,15 +26,15 @@ bun run start
 
 ### Navigation
 
-| Key         | Action                               |
-| ----------- | ------------------------------------ |
-| `j` / `k`   | Navigate between stories             |
-| `⌘j` / `⌘k` | Navigate between root-level comments |
-| `o`         | Open story URL in browser            |
-| `c`         | Chat with AI about the story         |
-| `s`         | Open settings                        |
-| `r`         | Refresh stories                      |
-| `q`         | Quit                                 |
+| Key       | Action                       |
+| --------- | ---------------------------- |
+| `j` / `k` | Navigate between stories     |
+| `space`   | Jump to next root comment    |
+| `o`       | Open story URL in browser    |
+| `r`       | Refresh stories              |
+| `c`       | Chat with AI about the story |
+| `t`       | AI-generated tl;dr           |
+| `s`       | Open settings                |
 
 ### Mouse Support
 
@@ -137,20 +129,20 @@ Press `s` at any time to open the settings panel. Use `j`/`k` to navigate, `←`
 
 These settings control which stories appear in your feed:
 
-| Setting          | Default | Description                                       |
-| ---------------- | ------- | ------------------------------------------------- |
-| Max Stories      | 24      | Maximum number of stories to display              |
-| Time Window      | 24h     | Only show stories from the last N hours           |
-| Min Points       | 50      | Minimum upvotes required (OR min comments)        |
-| Min Comments     | 20      | Minimum comments required (OR min points)         |
+| Setting      | Default | Description                                |
+| ------------ | ------- | ------------------------------------------ |
+| Max Stories  | 24      | Maximum number of stories to display       |
+| Time Window  | 24h     | Only show stories from the last N hours    |
+| Min Points   | 50      | Minimum upvotes required (OR min comments) |
+| Min Comments | 20      | Minimum comments required (OR min points)  |
 
 ### Comment Display
 
-| Setting          | Default | Description                                       |
-| ---------------- | ------- | ------------------------------------------------- |
-| Root Comments    | 12      | Maximum root-level comments shown per story       |
-| Child Comments   | 8       | Maximum replies shown per comment                 |
-| Nesting Depth    | 3       | Maximum levels of nested replies                  |
+| Setting        | Default | Description                                 |
+| -------------- | ------- | ------------------------------------------- |
+| Root Comments  | 12      | Maximum root-level comments shown per story |
+| Child Comments | 8       | Maximum replies shown per comment           |
+| Nesting Depth  | 3       | Maximum levels of nested replies            |
 
 Settings are stored locally at `~/.config/hn-cli/config.json`.
 
