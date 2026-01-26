@@ -1,4 +1,4 @@
-# hn-cli
+# HN CLI
 
 A terminal UI for browsing Hacker News, modeled after the HN reader on my [personal website](https://brianlovin.com/hn).
 
