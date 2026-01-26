@@ -638,8 +638,9 @@ export class HackerNewsApp {
       this.storiesFetchedAt = Date.now();
 
       // Handle requested story ID from command line flag
+      let initialStoryIndex = 0;
       if (this.requestedStoryId) {
-        await this.handleRequestedStory();
+        initialStoryIndex = await this.handleRequestedStory();
       }
 
       stopEmptyStateAnimation(this.emptyStateState);
@@ -656,9 +657,9 @@ export class HackerNewsApp {
         onSelect: (index) => this.selectStory(index),
       });
 
-      // Auto-select first story if we have posts
+      // Auto-select story (requested story index or first story)
       if (this.posts.length > 0) {
-        await this.selectStory(0);
+        await this.selectStory(initialStoryIndex);
       }
 
       this.saveToCache();
@@ -668,24 +669,22 @@ export class HackerNewsApp {
     }
   }
 
-  private async handleRequestedStory() {
-    if (!this.requestedStoryId) return;
+  private async handleRequestedStory(): Promise<number> {
+    if (!this.requestedStoryId) return 0;
 
     // Check if the requested story is already in the posts list
     const existingIndex = this.posts.findIndex((p) => p.id === this.requestedStoryId);
 
     if (existingIndex !== -1) {
-      // Story exists in list - move it to the front
-      const [story] = this.posts.splice(existingIndex, 1);
-      if (story) {
-        this.posts.unshift(story);
-      }
+      // Story exists in list - keep it in place, return its index
+      return existingIndex;
     } else {
-      // Story not in list - fetch it and prepend
+      // Story not in list - fetch it and prepend to index 0
       const requestedPost = await getPostById(this.requestedStoryId);
       if (requestedPost) {
         this.posts.unshift(requestedPost);
       }
+      return 0;
     }
   }
 
