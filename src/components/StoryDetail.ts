@@ -9,6 +9,7 @@ import { COLORS } from "../theme";
 import { stripHtml } from "../utils";
 import { renderComment } from "./Comment";
 import { createShortcutsBar, MAIN_SHORTCUTS } from "./ShortcutsBar";
+import { renderStoryHeader } from "./StoryHeader";
 import type { UpdateInfo } from "../version";
 import { getUpdateCommand } from "../version";
 
@@ -96,45 +97,14 @@ export function renderStoryDetail(
   post: HackerNewsPost,
   callbacks: StoryDetailCallbacks,
 ): void {
-  // Clear existing header content
-  for (const child of state.header.getChildren()) {
-    state.header.remove(child.id);
-  }
-
   // Clear existing scroll content
   for (const child of state.content.getChildren()) {
     state.content.remove(child.id);
   }
   state.rootCommentBoxes = [];
 
-  // Render title into fixed header (outside scroll)
-  const titleText = new TextRenderable(ctx, {
-    content: post.title,
-    fg: COLORS.text,
-    wrapMode: "word",
-    flexShrink: 0,
-    maxHeight: 2,
-    onMouseDown: () => callbacks.onOpenStoryUrl(),
-    onMouseOver: () => {
-      (titleText as any).fg = COLORS.link;
-    },
-    onMouseOut: () => {
-      (titleText as any).fg = COLORS.text;
-    },
-  });
-  state.header.add(titleText);
-
-  // Domain (clickable, lighter gray to match sidebar)
-  if (post.domain) {
-    const urlText = new TextRenderable(ctx, {
-      content: post.domain,
-      fg: COLORS.textDim,
-      flexShrink: 0,
-      maxHeight: 1,
-      onMouseDown: () => callbacks.onOpenStoryUrl(),
-    });
-    state.header.add(urlText);
-  }
+  // Render header with title and domain
+  renderStoryHeader(ctx, state.header, post, callbacks);
 
   // Post content if exists
   if (post.content) {
