@@ -12,12 +12,11 @@ export function createShortcutsBar(
 ): BoxRenderable {
   const bar = new BoxRenderable(ctx, {
     width: "100%",
-    height: 3,
+    height: 2,
     flexDirection: "row",
     alignItems: "center",
     paddingLeft: 2,
     paddingRight: 2,
-    paddingBottom: 1,
     backgroundColor: COLORS.bg,
     borderStyle: "single",
     border: ["top"],
@@ -38,7 +37,7 @@ export function createShortcutsBar(
 
     const descText = new TextRenderable(ctx, {
       content: desc,
-      fg: COLORS.textDim,
+      fg: COLORS.textSecondary,
     });
 
     shortcut.add(keyText);

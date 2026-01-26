@@ -31,7 +31,9 @@ export function createStoryDetail(
   callbacks: StoryDetailCallbacks,
 ): StoryDetailState {
   const panel = new BoxRenderable(ctx, {
-    width: "65%",
+    width: 0, // Base width of 0 combined with flexGrow forces proper text wrapping
+    flexGrow: 1, // Fill remaining width after story list
+    flexShrink: 0, // Prevent shrinking when content is loading
     height: "100%",
     flexDirection: "column",
     backgroundColor: COLORS.bg,
@@ -143,7 +145,7 @@ export function renderStoryDetail(
     });
     const contentText = new TextRenderable(ctx, {
       content: stripHtml(post.content),
-      fg: COLORS.text,
+      fg: COLORS.textPrimary,
       wrapMode: "word",
     });
     contentBox.add(contentText);
@@ -159,7 +161,7 @@ export function renderStoryDetail(
   // Comments header with count
   const commentsHeader = new TextRenderable(ctx, {
     content: `${post.comments_count} comments`,
-    fg: COLORS.textDim,
+    fg: COLORS.textSecondary,
   });
   commentsSection.add(commentsHeader);
 
@@ -178,7 +180,7 @@ export function renderStoryDetail(
   } else {
     const noComments = new TextRenderable(ctx, {
       content: "No comments yet...",
-      fg: COLORS.textDim,
+      fg: COLORS.textSecondary,
     });
     commentsSection.add(noComments);
   }
@@ -207,7 +209,7 @@ export function renderEmptyDetail(
   // Show empty state message in header
   const emptyMessage = new TextRenderable(ctx, {
     content: "Select a story to view details",
-    fg: COLORS.textDim,
+    fg: COLORS.textSecondary,
   });
   state.header.add(emptyMessage);
 
@@ -227,7 +229,7 @@ export function renderEmptyDetail(
 
     const updateCommand = new TextRenderable(ctx, {
       content: getUpdateCommand(),
-      fg: COLORS.textDim,
+      fg: COLORS.textSecondary,
     });
     updateContainer.add(updateCommand);
 

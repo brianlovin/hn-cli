@@ -41,7 +41,7 @@ export function createChatInput(
   const input = new TextareaRenderable(ctx, {
     width: "100%",
     flexGrow: 1,
-    minHeight: 1,
+    height: 1,
     maxHeight: 5,
     wrapMode: "word",
     placeholder: "Ask a question about this story...",

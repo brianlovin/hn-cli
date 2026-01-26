@@ -32,7 +32,7 @@ export function createStoryHeader(
   // Title
   const titleText = new TextRenderable(ctx, {
     content: post.title,
-    fg: COLORS.text,
+    fg: COLORS.textPrimary,
     wrapMode: "word",
     flexShrink: 0,
     maxHeight: 2,
@@ -41,7 +41,7 @@ export function createStoryHeader(
       (titleText as any).fg = COLORS.link;
     },
     onMouseOut: () => {
-      (titleText as any).fg = COLORS.text;
+      (titleText as any).fg = COLORS.textPrimary;
     },
   });
   container.add(titleText);
@@ -50,7 +50,7 @@ export function createStoryHeader(
   if (post.domain) {
     const domainText = new TextRenderable(ctx, {
       content: post.domain,
-      fg: COLORS.textDim,
+      fg: COLORS.textSecondary,
       flexShrink: 0,
       maxHeight: 1,
       onMouseDown: () => callbacks.onOpenStoryUrl(),
@@ -75,7 +75,7 @@ export function renderStoryHeader(
   // Title
   const titleText = new TextRenderable(ctx, {
     content: post.title,
-    fg: COLORS.text,
+    fg: COLORS.textPrimary,
     wrapMode: "word",
     flexShrink: 0,
     maxHeight: 2,
@@ -84,7 +84,7 @@ export function renderStoryHeader(
       (titleText as any).fg = COLORS.link;
     },
     onMouseOut: () => {
-      (titleText as any).fg = COLORS.text;
+      (titleText as any).fg = COLORS.textPrimary;
     },
   });
   container.add(titleText);
@@ -93,7 +93,7 @@ export function renderStoryHeader(
   if (post.domain) {
     const domainText = new TextRenderable(ctx, {
       content: post.domain,
-      fg: COLORS.textDim,
+      fg: COLORS.textSecondary,
       flexShrink: 0,
       maxHeight: 1,
       onMouseDown: () => callbacks.onOpenStoryUrl(),

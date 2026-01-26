@@ -66,7 +66,7 @@ function renderProviderSelection(
 ): void {
   const prompt = new TextRenderable(ctx, {
     content: "Choose your AI provider:",
-    fg: COLORS.text,
+    fg: COLORS.textPrimary,
   });
   container.add(prompt);
 
@@ -79,12 +79,11 @@ function renderProviderSelection(
   });
   const anthropicDot = new TextRenderable(ctx, {
     content: state.selectedProvider === "anthropic" ? "\u25CF" : "\u25CB",
-    fg:
-      state.selectedProvider === "anthropic" ? COLORS.accent : COLORS.textDim,
+    fg: state.selectedProvider === "anthropic" ? COLORS.accent : COLORS.textSecondary,
   });
   const anthropicLabel = new TextRenderable(ctx, {
     content: "Anthropic",
-    fg: state.selectedProvider === "anthropic" ? COLORS.accent : COLORS.text,
+    fg: state.selectedProvider === "anthropic" ? COLORS.accent : COLORS.textPrimary,
   });
   anthropicBox.add(anthropicDot);
   anthropicBox.add(anthropicLabel);
@@ -97,11 +96,11 @@ function renderProviderSelection(
   });
   const openaiDot = new TextRenderable(ctx, {
     content: state.selectedProvider === "openai" ? "\u25CF" : "\u25CB",
-    fg: state.selectedProvider === "openai" ? COLORS.accent : COLORS.textDim,
+    fg: state.selectedProvider === "openai" ? COLORS.accent : COLORS.textSecondary,
   });
   const openaiLabel = new TextRenderable(ctx, {
     content: "OpenAI",
-    fg: state.selectedProvider === "openai" ? COLORS.accent : COLORS.text,
+    fg: state.selectedProvider === "openai" ? COLORS.accent : COLORS.textPrimary,
   });
   openaiBox.add(openaiDot);
   openaiBox.add(openaiLabel);
@@ -112,7 +111,7 @@ function renderProviderSelection(
   // Instructions
   const instructions = new TextRenderable(ctx, {
     content: "\u2191/\u2193 to select, Enter to continue, Esc to cancel",
-    fg: COLORS.textDim,
+    fg: COLORS.textSecondary,
   });
   container.add(instructions);
 }
@@ -127,7 +126,7 @@ function renderKeyInput(
     state.selectedProvider === "anthropic" ? "Anthropic" : "OpenAI";
   const prompt = new TextRenderable(ctx, {
     content: `Enter your ${providerName} API key:`,
-    fg: COLORS.text,
+    fg: COLORS.textPrimary,
   });
   container.add(prompt);
 
@@ -149,7 +148,8 @@ function renderKeyInput(
   state.keyInput = new InputRenderable(ctx, {
     width: "100%",
     flexGrow: 1,
-    placeholder: state.selectedProvider === "anthropic" ? "sk-ant-..." : "sk-...",
+    placeholder:
+      state.selectedProvider === "anthropic" ? "sk-ant-..." : "sk-...",
     backgroundColor: COLORS.bg,
   });
 
@@ -168,25 +168,16 @@ function renderKeyInput(
   // Security note
   const securityNote = new TextRenderable(ctx, {
     content: "Your key is stored locally at ~/.config/hn-cli/config.json",
-    fg: COLORS.textDim,
+    fg: COLORS.textSecondary,
     wrapMode: "word",
   });
   container.add(securityNote);
-
-  container.add(new BoxRenderable(ctx, { height: 1 }));
-
-  const repoNote = new TextRenderable(ctx, {
-    content: "This app is open source: github.com/brianlovin/hn-cli",
-    fg: COLORS.textDim,
-    wrapMode: "word",
-  });
-  container.add(repoNote);
 
   container.add(new BoxRenderable(ctx, { height: 2 }));
 
   const instructions = new TextRenderable(ctx, {
     content: "Enter to save, Esc to cancel",
-    fg: COLORS.textDim,
+    fg: COLORS.textSecondary,
   });
   container.add(instructions);
 
@@ -199,7 +190,10 @@ function renderKeyInput(
   }, 50);
 }
 
-export function navigateAuthProvider(state: AuthSetupState, delta: number): void {
+export function navigateAuthProvider(
+  state: AuthSetupState,
+  delta: number,
+): void {
   if (state.step !== "provider") return;
   state.selectedProvider = delta > 0 ? "openai" : "anthropic";
 }

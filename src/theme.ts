@@ -4,10 +4,9 @@ export interface Theme {
   bg: string | undefined;
   bgSelected: string;
   border: string;
-  text: string;
-  textDim: string;
-  textMuted: string;
-  textVeryDim: string;
+  textPrimary: string;
+  textSecondary: string;
+  textTertiary: string;
   accent: string;
   link: string;
   success: string;
@@ -20,10 +19,9 @@ const DARK_THEME: Theme = {
   bg: undefined, // Use terminal default
   bgSelected: "#2a2a2a",
   border: "#3a3a3a",
-  text: "#e0e0e0",
-  textDim: "#888888",
-  textMuted: "#666666",
-  textVeryDim: "#444444",
+  textPrimary: "#e0e0e0",
+  textSecondary: "#888888",
+  textTertiary: "#666666",
   accent: "#ff6600",
   link: "#6699ff",
   success: "#4ade80",
@@ -36,10 +34,9 @@ const LIGHT_THEME: Theme = {
   bg: undefined, // Use terminal default
   bgSelected: "#e8e8e8",
   border: "#cccccc",
-  text: "#1a1a1a",
-  textDim: "#666666",
-  textMuted: "#888888",
-  textVeryDim: "#aaaaaa",
+  textPrimary: "#1a1a1a",
+  textSecondary: "#666666",
+  textTertiary: "#888888",
   accent: "#ff6600",
   link: "#0066cc",
   success: "#22c55e",
