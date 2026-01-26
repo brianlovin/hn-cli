@@ -58,6 +58,6 @@ export const MAIN_SHORTCUTS: ShortcutItem[] = [
 ];
 
 export const CHAT_SHORTCUTS: ShortcutItem[] = [
-  { key: ",", desc: "settings" },
+  { key: "\u2318.", desc: "settings" },
   { key: "esc", desc: "close" },
 ];

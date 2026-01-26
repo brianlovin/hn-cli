@@ -74,6 +74,14 @@ import {
 
 const MAX_FOLLOW_UP_ROUNDS = 3;
 
+// Saved chat session state for preserving chats per story
+interface SavedChatSession {
+  messages: { role: "user" | "assistant"; content: string }[];
+  suggestions: string[];
+  originalSuggestions: string[];
+  followUpCount: number;
+}
+
 export interface AppCallbacks {
   onOpenUrl?: (url: string) => void;
   onExit?: () => void;
@@ -101,6 +109,9 @@ export class HackerNewsApp {
   private authSetupState: AuthSetupState | null = null;
   private settingsState: SettingsState | null = null;
   private chatServiceState: ChatServiceState | null = null;
+
+  // Saved chat sessions per story (keyed by story ID)
+  private savedChatSessions: Map<number, SavedChatSession> = new Map();
 
   // UI mode flags
   private chatMode = false;
@@ -324,7 +335,7 @@ export class HackerNewsApp {
       return;
     }
 
-    if (key.name === "," || key.sequence === ",") {
+    if (key.name === "." && key.super) {
       this.showSettings();
       return;
     }
@@ -343,6 +354,24 @@ export class HackerNewsApp {
         return;
       } else if (key.name === "down" || key.name === "j") {
         navigateSuggestion(suggestionsState, 1);
+        renderSuggestions(this.ctx, suggestionsState);
+        return;
+      }
+    }
+
+    // Handle Tab key to insert suggestion into input for editing
+    if (
+      key.name === "tab" &&
+      suggestionsState.selectedIndex >= 0 &&
+      suggestionsState.suggestions.length > 0
+    ) {
+      const suggestion = suggestionsState.suggestions[suggestionsState.selectedIndex];
+      if (suggestion && this.chatPanelState.input) {
+        this.chatPanelState.input.clear();
+        this.chatPanelState.input.insertText(suggestion + " ");
+        // Clear suggestions so user can type freely
+        suggestionsState.suggestions = [];
+        suggestionsState.selectedIndex = -1;
         renderSuggestions(this.ctx, suggestionsState);
         return;
       }
@@ -525,7 +554,6 @@ export class HackerNewsApp {
     if (!this.selectedPost || !this.chatServiceState) return;
 
     this.chatMode = true;
-    this.followUpCount = 0;
 
     // Hide story list and expand detail panel
     this.contentArea.remove(this.storyListState.panel.id);
@@ -555,25 +583,54 @@ export class HackerNewsApp {
       }
     }, 10);
 
-    // Add initial assistant message
-    addChatMessage(
-      this.ctx,
-      this.chatPanelState,
-      "assistant",
-      `I have the full context of "${this.selectedPost.title}" and all ${this.selectedPost.comments_count} comments. Ask me anything!`,
-      this.chatServiceState.provider,
-    );
+    // Check if there's a saved session for this story
+    const savedSession = this.savedChatSessions.get(this.selectedPost.id);
 
-    // Show loading state and generate dynamic suggestions
-    this.chatPanelState.suggestions.loading = true;
-    renderSuggestions(this.ctx, this.chatPanelState.suggestions);
-    this.generateInitialSuggestions();
+    if (savedSession) {
+      // Restore the saved session
+      this.followUpCount = savedSession.followUpCount;
+      this.chatPanelState.messages = [...savedSession.messages];
+      this.chatPanelState.suggestions.suggestions = [...savedSession.suggestions];
+      this.chatPanelState.suggestions.originalSuggestions = [...savedSession.originalSuggestions];
+      this.chatPanelState.suggestions.selectedIndex = savedSession.suggestions.length > 0
+        ? savedSession.suggestions.length - 1
+        : -1;
+
+      // Re-render restored messages and suggestions
+      renderChatMessages(this.ctx, this.chatPanelState, this.chatServiceState.provider);
+      renderSuggestions(this.ctx, this.chatPanelState.suggestions);
+    } else {
+      // Fresh session - add initial assistant message
+      this.followUpCount = 0;
+      addChatMessage(
+        this.ctx,
+        this.chatPanelState,
+        "assistant",
+        `I have the full context of "${this.selectedPost.title}" and all ${this.selectedPost.comments_count} comments. Ask me anything!`,
+        this.chatServiceState.provider,
+      );
+
+      // Show loading state and generate dynamic suggestions
+      this.chatPanelState.suggestions.loading = true;
+      renderSuggestions(this.ctx, this.chatPanelState.suggestions);
+      this.generateInitialSuggestions();
+    }
   }
 
   private hideChatView() {
     if (!this.chatMode) return;
 
     this.chatMode = false;
+
+    // Save the chat session for this story before clearing
+    if (this.selectedPost && this.chatPanelState) {
+      this.savedChatSessions.set(this.selectedPost.id, {
+        messages: [...this.chatPanelState.messages],
+        suggestions: [...this.chatPanelState.suggestions.suggestions],
+        originalSuggestions: [...this.chatPanelState.suggestions.originalSuggestions],
+        followUpCount: this.followUpCount,
+      });
+    }
 
     // Blur the chat input
     if (this.chatPanelState?.input) {
@@ -858,6 +915,16 @@ export class HackerNewsApp {
       this.chatPanelState.input.blur();
     }
 
+    // Save the chat session before switching to settings
+    if (this.selectedPost && this.chatPanelState) {
+      this.savedChatSessions.set(this.selectedPost.id, {
+        messages: [...this.chatPanelState.messages],
+        suggestions: [...this.chatPanelState.suggestions.suggestions],
+        originalSuggestions: [...this.chatPanelState.suggestions.originalSuggestions],
+        followUpCount: this.followUpCount,
+      });
+    }
+
     // Remove chat components
     for (const child of this.storyDetailState.panel.getChildren()) {
       this.storyDetailState.panel.remove(child.id);
@@ -885,9 +952,6 @@ export class HackerNewsApp {
   private hideSettings() {
     this.settingsMode = false;
 
-    // Preserve existing messages before recreating chat panel
-    const existingMessages = this.chatPanelState?.messages || [];
-
     // Remove settings components
     for (const child of this.storyDetailState.panel.getChildren()) {
       this.storyDetailState.panel.remove(child.id);
@@ -900,11 +964,20 @@ export class HackerNewsApp {
         onSubmit: () => this.sendChatMessage(),
       });
 
-      // Restore existing messages
-      this.chatPanelState.messages = existingMessages;
-
       for (const child of this.chatPanelState.panel.getChildren()) {
         this.storyDetailState.panel.add(child);
+      }
+
+      // Restore saved session if available
+      const savedSession = this.savedChatSessions.get(this.selectedPost.id);
+      if (savedSession) {
+        this.followUpCount = savedSession.followUpCount;
+        this.chatPanelState.messages = [...savedSession.messages];
+        this.chatPanelState.suggestions.suggestions = [...savedSession.suggestions];
+        this.chatPanelState.suggestions.originalSuggestions = [...savedSession.originalSuggestions];
+        this.chatPanelState.suggestions.selectedIndex = savedSession.suggestions.length > 0
+          ? savedSession.suggestions.length - 1
+          : -1;
       }
 
       // Render messages and focus input
@@ -915,14 +988,8 @@ export class HackerNewsApp {
         this.chatPanelState.input.clear();
       }
 
-      // Regenerate follow-up questions if there are existing messages
-      if (existingMessages.length > 1) {
-        // Reset follow-up count to allow regeneration with new model
-        this.followUpCount = 0;
-        this.generateFollowUpQuestionsIfNeeded();
-      } else {
-        renderSuggestions(this.ctx, this.chatPanelState.suggestions);
-      }
+      // Render suggestions (either restored from saved session or default)
+      renderSuggestions(this.ctx, this.chatPanelState.suggestions);
     }
 
     this.settingsState = null;

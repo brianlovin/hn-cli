@@ -10,6 +10,7 @@ import { COLORS } from "../theme";
 import { createShortcutsBar, CHAT_SHORTCUTS } from "./ShortcutsBar";
 import { createSuggestionsContainer, type SuggestionsState, initSuggestionsState } from "./Suggestions";
 import { createChatInput } from "./ChatInput";
+import { createStoryHeader } from "./StoryHeader";
 import type { Provider } from "../config";
 import { LOADING_CHARS } from "../utils";
 
@@ -86,44 +87,9 @@ export function createChatPanel(
   });
 
   // Add header showing we're chatting about this story
-  const chatHeader = new BoxRenderable(ctx, {
-    width: "100%",
-    flexDirection: "column",
-    paddingLeft: 2,
-    paddingRight: 2,
-    paddingTop: 1,
-    paddingBottom: 1,
-    borderStyle: "single",
-    border: ["bottom"],
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.bg,
+  const { container: chatHeader } = createStoryHeader(ctx, post, {
+    onOpenStoryUrl: callbacks.onOpenStoryUrl,
   });
-
-  // Title (same style as story detail header)
-  const titleText = new TextRenderable(ctx, {
-    content: post.title,
-    fg: COLORS.text,
-    wrapMode: "word",
-    onMouseDown: () => callbacks.onOpenStoryUrl(),
-    onMouseOver: () => {
-      (titleText as any).fg = COLORS.link;
-    },
-    onMouseOut: () => {
-      (titleText as any).fg = COLORS.text;
-    },
-  });
-  chatHeader.add(titleText);
-
-  // Domain (same style as story detail header)
-  if (post.domain) {
-    const domainText = new TextRenderable(ctx, {
-      content: post.domain,
-      fg: COLORS.textDim,
-      marginTop: 1,
-      onMouseDown: () => callbacks.onOpenStoryUrl(),
-    });
-    chatHeader.add(domainText);
-  }
 
   panel.add(chatHeader);
   panel.add(scroll);
