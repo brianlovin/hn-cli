@@ -4,6 +4,7 @@ import {
   type Provider,
   getApiKey,
   getModel,
+  isTelemetryEnabled,
   ANTHROPIC_MODELS,
   OPENAI_MODELS,
 } from "../config";
@@ -11,6 +12,7 @@ import {
 type SettingsItemType =
   | { type: "provider"; provider: Provider; hasKey: boolean }
   | { type: "model"; modelId: string; modelName: string }
+  | { type: "telemetry"; enabled: boolean }
   | { type: "action"; action: "done" | "clear_keys" };
 
 interface SettingsListItem {
@@ -55,6 +57,12 @@ function getSettingsList(chatProvider: Provider): SettingsListItem[] {
       });
     }
   }
+
+  // Telemetry toggle
+  items.push({
+    item: { type: "telemetry", enabled: isTelemetryEnabled() },
+    enabled: true,
+  });
 
   // Action buttons
   items.push({
@@ -193,6 +201,48 @@ export function renderSettings(
     }
   }
 
+  // Telemetry section
+  container.add(new BoxRenderable(ctx, { height: 1 }));
+
+  const telemetryHeader = new TextRenderable(ctx, {
+    content: t`${bold("Telemetry")}`,
+    fg: COLORS.textSecondary,
+  });
+  container.add(telemetryHeader);
+
+  for (let i = 0; i < items.length; i++) {
+    const listItem = items[i];
+    if (!listItem || listItem.item.type !== "telemetry") continue;
+
+    const isSelected = i === state.selectedIndex;
+    const isEnabled = listItem.item.enabled;
+
+    const itemBox = new BoxRenderable(ctx, {
+      flexDirection: "row",
+      gap: 1,
+    });
+
+    const indicator = new TextRenderable(ctx, {
+      content: isSelected ? "›" : " ",
+      fg: COLORS.accent,
+    });
+    itemBox.add(indicator);
+
+    const toggle = new TextRenderable(ctx, {
+      content: isEnabled ? "●" : "○",
+      fg: isEnabled ? COLORS.accent : COLORS.textSecondary,
+    });
+    itemBox.add(toggle);
+
+    const label = new TextRenderable(ctx, {
+      content: isEnabled ? "Enabled" : "Disabled",
+      fg: isSelected ? COLORS.accent : COLORS.textPrimary,
+    });
+    itemBox.add(label);
+
+    container.add(itemBox);
+  }
+
   container.add(new BoxRenderable(ctx, { height: 1 }));
 
   // Actions section
@@ -258,6 +308,7 @@ export type SettingsAction =
   | { type: "add_anthropic" }
   | { type: "add_openai" }
   | { type: "clear_keys" }
+  | { type: "toggle_telemetry" }
   | { type: "done" }
   | null;
 
@@ -289,6 +340,9 @@ export function selectSettingsItem(
         modelId: selected.item.modelId,
         provider: chatProvider,
       };
+
+    case "telemetry":
+      return { type: "toggle_telemetry" };
 
     case "action":
       switch (selected.item.action) {

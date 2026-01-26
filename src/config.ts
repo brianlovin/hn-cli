@@ -33,6 +33,8 @@ export interface Config {
   openaiApiKey?: string;
   anthropicModel?: AnthropicModel;
   openaiModel?: OpenAIModel;
+  telemetryEnabled?: boolean;
+  userId?: string;
 }
 
 const CONFIG_DIR = join(homedir(), ".config", "hn-cli");
@@ -167,6 +169,45 @@ export function clearApiKey(provider: Provider): void {
 }
 
 export function clearAllApiKeys(): void {
-  // Clear everything - start fresh (currently Config only contains API-related settings)
-  saveConfig({});
+  // Clear API-related settings but preserve telemetry preferences
+  const config = loadConfig();
+  saveConfig({
+    telemetryEnabled: config.telemetryEnabled,
+    userId: config.userId,
+  });
+}
+
+// Telemetry settings
+
+/**
+ * Check if telemetry is enabled (default: true)
+ */
+export function isTelemetryEnabled(): boolean {
+  const config = loadConfig();
+  return config.telemetryEnabled !== false;
+}
+
+/**
+ * Enable or disable telemetry
+ */
+export function setTelemetryEnabled(enabled: boolean): void {
+  const config = loadConfig();
+  config.telemetryEnabled = enabled;
+  saveConfig(config);
+}
+
+/**
+ * Get or generate anonymous user ID for telemetry
+ */
+export function getUserId(): string {
+  const config = loadConfig();
+  if (config.userId) {
+    return config.userId;
+  }
+
+  // Generate a new UUID
+  const userId = crypto.randomUUID();
+  config.userId = userId;
+  saveConfig(config);
+  return userId;
 }

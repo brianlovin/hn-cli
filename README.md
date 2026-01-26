@@ -130,6 +130,38 @@ I made these choices so that it's easier for me to keep up with the most interes
 
 If you want your version of this tool to work differently, feel free to clone or consider opening a PR with more advanced settings to let people customize the default experience.
 
+## Telemetry
+
+This CLI collects anonymous usage data to help understand how people use it and what features to improve. No personal information or content is ever collected.
+
+### What's collected
+
+- App launches (with version number)
+- Feature usage counts (TLDR, chat, refresh)
+- Navigation patterns (stories selected, comments viewed)
+- Keyboard shortcut usage
+
+### What's NOT collected
+
+- Story content, titles, or URLs
+- Chat messages or AI responses
+- API keys or credentials
+- IP addresses or location data
+
+### Disabling telemetry
+
+**Option 1: Settings menu**
+
+Press `s` to open settings, then toggle "Telemetry" off.
+
+**Option 2: Launch flag**
+
+```bash
+hn --disable-telemetry
+```
+
+This permanently disables telemetry. Your preference is stored locally at `~/.config/hn-cli/config.json`.
+
 ## Credits
 
 Built with [OpenTUI](https://github.com/anthropics/opentui)
