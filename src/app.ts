@@ -234,6 +234,14 @@ export class HackerNewsApp {
     showUpdateNotification(this.headerState, this.updateInfo);
   }
 
+  startHeaderLoading() {
+    startLoadingAnimation(this.headerState, () => this.renderer.isDestroyed);
+  }
+
+  stopHeaderLoading() {
+    stopLoadingAnimation(this.headerState);
+  }
+
   private setupLayout() {
     const mainContainer = new BoxRenderable(this.ctx, {
       width: "100%",
@@ -577,14 +585,12 @@ export class HackerNewsApp {
   }
 
   private async loadPosts() {
-    // Start loading animation (both header indicator and empty state animation)
-    startLoadingAnimation(this.headerState, () => this.renderer.isDestroyed);
+    // Start full-screen loading animation (header loading is reserved for update checks)
     startEmptyStateAnimation(this.emptyStateState, "loading", () => this.renderer.isDestroyed);
 
     try {
       this.posts = await getRankedPosts();
       this.storiesFetchedAt = Date.now();
-      stopLoadingAnimation(this.headerState);
       stopEmptyStateAnimation(this.emptyStateState);
 
       // Remove loading state and add the main layout
@@ -606,7 +612,6 @@ export class HackerNewsApp {
 
       this.saveToCache();
     } catch (error) {
-      stopLoadingAnimation(this.headerState);
       stopEmptyStateAnimation(this.emptyStateState);
       log("[ERROR]", "Error loading posts:", error);
     }

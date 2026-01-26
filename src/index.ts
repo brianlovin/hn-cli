@@ -34,7 +34,9 @@ async function main() {
   await app.initialize();
 
   // Check for updates in the background (non-blocking)
+  app.startHeaderLoading();
   checkForUpdates().then((updateInfo) => {
+    app.stopHeaderLoading();
     if (updateInfo?.hasUpdate) {
       app.setUpdateInfo(updateInfo);
     }
