@@ -57,7 +57,14 @@ bun run debug highlighted-comment # Test comment highlighting
 - `src/api.ts` - API client for fetching from HNPWA API
 - `src/app.ts` - Main app class (testable)
 - `src/index.ts` - Entry point
+- `src/telemetry.ts` - Anonymous usage telemetry
 - `src/test/` - Test suite using OpenTUI testing framework
+
+## Telemetry
+
+Anonymous usage telemetry is enabled by default. Disable with:
+- Settings menu (`s`) → toggle Telemetry off
+- `hn --disable-telemetry` flag (permanently disables)
 
 ## Dependencies
 
