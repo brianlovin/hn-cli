@@ -160,7 +160,7 @@ describe("HackerNewsApp", () => {
     it("should navigate to next comment with cmd+j", async () => {
       expect(app.currentRootCommentIndex).toBe(0);
 
-      mockInput.pressKey("j", { meta: true }); // cmd key is meta
+      mockInput.pressKey("j", { super: true }); // cmd key is super with kitty keyboard
       await renderOnce();
 
       expect(app.currentRootCommentIndex).toBe(1);
@@ -168,21 +168,21 @@ describe("HackerNewsApp", () => {
 
     it("should navigate to previous comment with cmd+k", async () => {
       // First go to comment 2
-      mockInput.pressKey("j", { meta: true });
+      mockInput.pressKey("j", { super: true });
       await renderOnce();
-      mockInput.pressKey("j", { meta: true });
+      mockInput.pressKey("j", { super: true });
       await renderOnce();
       expect(app.currentRootCommentIndex).toBe(2);
 
       // Go back
-      mockInput.pressKey("k", { meta: true });
+      mockInput.pressKey("k", { super: true });
       await renderOnce();
 
       expect(app.currentRootCommentIndex).toBe(1);
     });
 
     it("should not go before first comment", async () => {
-      mockInput.pressKey("k", { meta: true });
+      mockInput.pressKey("k", { super: true });
       await renderOnce();
 
       expect(app.currentRootCommentIndex).toBe(0);
@@ -191,7 +191,7 @@ describe("HackerNewsApp", () => {
     it("should not go past last comment", async () => {
       // Navigate to last comment
       for (let i = 0; i < 10; i++) {
-        mockInput.pressKey("j", { meta: true });
+        mockInput.pressKey("j", { super: true });
         await renderOnce();
       }
 
@@ -211,7 +211,7 @@ describe("HackerNewsApp", () => {
 
       // Navigate to comment 5
       for (let i = 0; i < 5; i++) {
-        mockInput.pressKey("j", { meta: true });
+        mockInput.pressKey("j", { super: true });
         await renderOnce();
       }
 

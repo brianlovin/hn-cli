@@ -1107,8 +1107,8 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
         return;
       }
 
-      // Check for cmd/meta modifier
-      const hasCmdMod = key.meta;
+      // Check for cmd/super modifier (Command key on macOS with Kitty keyboard)
+      const hasCmdMod = key.super;
 
       // Story navigation: j/k without cmd key
       if (key.name === "j" && !hasCmdMod) {
@@ -1193,7 +1193,7 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
       id: `content-${post.id}`,
       flexGrow: 1,
       flexDirection: "column",
-      paddingRight: 1,
+      paddingRight: 2,
     });
     item.add(content);
 
@@ -1203,6 +1203,7 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
       id: `title-${post.id}`,
       content: this.truncateText(post.title, maxTitleLength),
       fg: isSelected ? COLORS.accent : COLORS.text,
+      maxHeight: 2,
     });
     content.add(titleText);
 
@@ -1247,11 +1248,22 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
 
     if (this.renderer.isDestroyed) return;
 
-    // Scroll story list to keep selected item visible
-    // Items are more compact now (title + domain on same line)
-    const itemHeight = 2; // Title line(s) - may wrap to 2 lines
-    const scrollTop = Math.max(0, index * itemHeight - 5);
-    this.storyListScroll.scrollTop = scrollTop;
+    // Scroll story list to keep selected item visible (only when necessary)
+    const itemHeight = 2; // Each story item is ~2 lines
+    const itemTop = index * itemHeight;
+    const itemBottom = itemTop + itemHeight;
+    const viewportHeight = this.storyListScroll.height;
+    const currentScroll = this.storyListScroll.scrollTop;
+
+    // Only scroll if the item is outside the visible viewport
+    if (itemTop < currentScroll) {
+      // Item is above viewport - scroll up to show it at top
+      this.storyListScroll.scrollTop = itemTop;
+    } else if (itemBottom > currentScroll + viewportHeight) {
+      // Item is below viewport - scroll down to show it at bottom
+      this.storyListScroll.scrollTop = itemBottom - viewportHeight;
+    }
+    // Otherwise, item is already visible - don't scroll
   }
 
   private updateStoryItemStyle(index: number, isSelected: boolean) {
@@ -1321,6 +1333,7 @@ ${storyUrl ? `The original article URL is: ${storyUrl}` : ""}`;
         content: post.domain,
         fg: COLORS.textDim,
         flexShrink: 0,
+        maxHeight: 1,
         onMouseDown: () => this.openStoryUrl(),
       });
       this.detailHeader.add(urlText);
