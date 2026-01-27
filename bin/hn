@@ -1,6 +1,18 @@
 #!/bin/sh
 # Launcher that works with both Node.js and Bun
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Resolve symlinks to find the real script location
+SCRIPT="$0"
+while [ -L "$SCRIPT" ]; do
+  SCRIPT_DIR="$(cd "$(dirname "$SCRIPT")" && pwd)"
+  SCRIPT="$(readlink "$SCRIPT")"
+  # Handle relative symlinks
+  case "$SCRIPT" in
+    /*) ;;
+    *) SCRIPT="$SCRIPT_DIR/$SCRIPT" ;;
+  esac
+done
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT")" && pwd)"
 
 if command -v bun >/dev/null 2>&1; then
   exec bun "$SCRIPT_DIR/hn.mjs" "$@"
