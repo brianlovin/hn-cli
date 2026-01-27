@@ -36,11 +36,12 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       # Publish platform packages first (they must exist before main package)
-      # Run npm publish from root to avoid working directory issues with auth
       - name: Publish platform packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          # Set npm auth explicitly to ensure it works for subdirectory publishing
+          npm config set //registry.npmjs.org/:_authToken $NODE_AUTH_TOKEN
           for dir in dist/binaries/*/; do
             name=$(basename "$dir")
             echo "Publishing $name..."
