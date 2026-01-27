@@ -1,4 +1,5 @@
 import { BoxRenderable, type CliRenderer, type RenderContext } from "@opentui/core";
+import { spawn } from "node:child_process";
 import { log } from "./logger";
 import * as telemetry from "./telemetry";
 import { getRankedPosts, getPostById } from "./api";
@@ -1593,12 +1594,15 @@ export class HackerNewsApp {
     }
 
     try {
-      const proc = Bun.spawn(clipboardCmd, {
-        stdin: "pipe",
+      const cmd = clipboardCmd[0]!;
+      const args = clipboardCmd.slice(1);
+      await new Promise<void>((resolve) => {
+        const proc = spawn(cmd, args, { stdio: ["pipe", "ignore", "ignore"] });
+        proc.on("close", () => resolve());
+        proc.on("error", () => resolve());
+        proc.stdin?.write(selectedText);
+        proc.stdin?.end();
       });
-      proc.stdin.write(selectedText);
-      proc.stdin.end();
-      await proc.exited;
     } catch {
       // Clipboard command not available or failed - silently fail
     }

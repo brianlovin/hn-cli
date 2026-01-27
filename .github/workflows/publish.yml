@@ -15,13 +15,18 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          # Pin to 1.1.39 - Bun segfaults during test cleanup on Linux due to
-          # timer callback bugs. This version has been most stable in testing.
-          # See: https://github.com/oven-sh/bun/issues/22452
-          bun-version: "1.1.39"
+          bun-version: "latest"
 
       - run: bun install
-      - run: bun run build
+
+      # Build platform binaries (cross-compilation)
+      - name: Build platform binaries
+        run: bun run build:binaries
+
+      # Also build the regular dist for Bun users
+      - name: Build dist
+        run: bun run build
+
       - run: bun run test
       - run: bun run typecheck
 
@@ -30,4 +35,20 @@ jobs:
           node-version: '24.x'
           registry-url: 'https://registry.npmjs.org'
 
-      - run: npm publish --provenance --access public
+      # Publish platform packages first (they must exist before main package)
+      - name: Publish platform packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          for dir in dist/binaries/*/; do
+            echo "Publishing $(basename $dir)..."
+            cd "$dir"
+            npm publish --provenance --access public || echo "Package may already exist, continuing..."
+            cd -
+          done
+
+      # Then publish the main package
+      - name: Publish main package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public
