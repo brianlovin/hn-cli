@@ -1,6 +1,6 @@
 {
   "name": "@brianlovin/hn-cli",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Interactive terminal UI for browsing Hacker News",
   "module": "src/index.ts",
   "type": "module",
@@ -57,10 +57,10 @@
     "openai": "^6.16.0"
   },
   "optionalDependencies": {
-    "@brianlovin/hn-cli-darwin-arm64": "0.4.3",
-    "@brianlovin/hn-cli-darwin-x64": "0.4.3",
-    "@brianlovin/hn-cli-linux-arm64": "0.4.3",
-    "@brianlovin/hn-cli-linux-x64": "0.4.3",
-    "@brianlovin/hn-cli-windows-x64": "0.4.3"
+    "@brianlovin/hn-cli-darwin-arm64": "0.4.4",
+    "@brianlovin/hn-cli-darwin-x64": "0.4.4",
+    "@brianlovin/hn-cli-linux-arm64": "0.4.4",
+    "@brianlovin/hn-cli-linux-x64": "0.4.4",
+    "@brianlovin/hn-cli-windows-x64": "0.4.4"
   }
 }
