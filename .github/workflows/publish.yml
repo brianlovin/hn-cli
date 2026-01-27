@@ -38,12 +38,14 @@ jobs:
       # Publish platform packages first (they must exist before main package)
       - name: Publish platform packages
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          # Write .npmrc with auth token (setup-node's .npmrc doesn't work for subdirectory publishing)
+          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
           for dir in dist/binaries/*/; do
             name=$(basename "$dir")
             echo "Publishing $name..."
-            npm publish "$dir" --provenance --access public || echo "Package may already exist, continuing..."
+            (cd "$dir" && npm publish --access public) || echo "Package may already exist, continuing..."
           done
 
       # Remove binaries from dist before publishing main package (they're in separate packages)
