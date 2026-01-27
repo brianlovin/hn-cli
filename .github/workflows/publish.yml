@@ -41,11 +41,14 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           for dir in dist/binaries/*/; do
-            echo "Publishing $(basename $dir)..."
-            cd "$dir"
-            npm publish --provenance --access public || echo "Package may already exist, continuing..."
-            cd -
+            name=$(basename "$dir")
+            echo "Publishing $name..."
+            npm publish "$dir" --provenance --access public || echo "Package may already exist, continuing..."
           done
+
+      # Remove binaries from dist before publishing main package (they're in separate packages)
+      - name: Clean binaries from dist
+        run: rm -rf dist/binaries
 
       # Then publish the main package
       - name: Publish main package
