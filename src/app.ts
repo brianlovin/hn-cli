@@ -684,11 +684,9 @@ export class HackerNewsApp {
     } else if (key.name === "k") {
       this.navigateStory(-1);
     } else if (key.name === "down") {
-      telemetry.track("comment_nav");
-      this.navigateToNextComment();
+      this.scrollComments(3);
     } else if (key.name === "up") {
-      telemetry.track("comment_nav");
-      this.navigateToPreviousComment();
+      this.scrollComments(-3);
     } else if (key.name === "space" || key.name === " ") {
       telemetry.track("comment_nav");
       // Space navigates to next root comment only (forward)
@@ -1098,6 +1096,13 @@ export class HackerNewsApp {
       this.rootCommentIndex--;
       scrollToRootComment(this.storyDetailState, this.rootCommentIndex);
     }
+  }
+
+  private scrollComments(lines: number) {
+    if (!this.selectedPost) return;
+    const scroll = this.storyDetailState.scroll;
+    const newScrollTop = scroll.scrollTop + lines;
+    scroll.scrollTop = Math.max(0, newScrollTop);
   }
 
   private openStoryUrl() {
