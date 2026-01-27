@@ -10,8 +10,15 @@ A terminal UI for browsing Hacker News, modeled after the HN reader on my [perso
 # Run directly (no install needed)
 bunx @brianlovin/hn-cli
 
+# or with npx
+npx @brianlovin/hn-cli
+
 # Or install globally
 bun install -g @brianlovin/hn-cli
+hn
+
+# Or with npm
+npm install -g @brianlovin/hn-cli
 hn
 ```
 
