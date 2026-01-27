@@ -36,14 +36,18 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       # Publish platform packages first (they must exist before main package)
-      # Write .npmrc directly to each package directory with the actual token
+      # Use setup-node's OIDC config by running publish from subdirectories with userconfig preserved
       - name: Publish platform packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          # Save the userconfig path set by setup-node
+          NPMRC_PATH="$NPM_CONFIG_USERCONFIG"
           for dir in dist/binaries/*/; do
             name=$(basename "$dir")
             echo "Publishing $name..."
-            echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > "$dir/.npmrc"
-            npm publish "$dir" --provenance --access public || echo "Package may already exist, continuing..."
+            # Run npm publish from within the directory, explicitly using the setup-node .npmrc
+            (cd "$dir" && NPM_CONFIG_USERCONFIG="$NPMRC_PATH" npm publish --provenance --access public) || echo "Package may already exist, continuing..."
           done
 
       # Remove binaries from dist before publishing main package (they're in separate packages)
