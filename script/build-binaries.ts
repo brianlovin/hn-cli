@@ -79,6 +79,16 @@ for (const target of filteredTargets) {
   console.log(`  ✓ Built ${outDir}/bin/${binary}`)
 }
 
+// Update optionalDependencies in main package.json to match current version
+const updatedPkg = { ...pkg }
+if (updatedPkg.optionalDependencies) {
+  for (const key of Object.keys(updatedPkg.optionalDependencies)) {
+    updatedPkg.optionalDependencies[key] = version
+  }
+  await Bun.write("package.json", JSON.stringify(updatedPkg, null, 2) + "\n")
+  console.log(`Updated optionalDependencies to version ${version}`)
+}
+
 console.log("")
 console.log("Build complete!")
 console.log("")
