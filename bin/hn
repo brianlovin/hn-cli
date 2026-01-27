@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
-const childProcess = require("child_process")
-const fs = require("fs")
-const path = require("path")
-const os = require("os")
+import { spawnSync } from "child_process"
+import { existsSync, realpathSync } from "fs"
+import { dirname, join } from "path"
+import { platform as osPlatform, arch as osArch } from "os"
+import { fileURLToPath } from "url"
 
 function run(target) {
-  const result = childProcess.spawnSync(target, process.argv.slice(2), {
+  const result = spawnSync(target, process.argv.slice(2), {
     stdio: "inherit",
   })
   if (result.error) {
@@ -18,8 +19,9 @@ function run(target) {
 }
 
 // Resolve symlinks to get the real script location
-const scriptPath = fs.realpathSync(__filename)
-const scriptDir = path.dirname(scriptPath)
+const __filename = fileURLToPath(import.meta.url)
+const scriptPath = realpathSync(__filename)
+const scriptDir = dirname(scriptPath)
 
 // Map platform/arch to package names
 const platformMap = {
@@ -32,8 +34,8 @@ const archMap = {
   arm64: "arm64",
 }
 
-const platform = platformMap[os.platform()] || os.platform()
-const arch = archMap[os.arch()] || os.arch()
+const platform = platformMap[osPlatform()] || osPlatform()
+const arch = archMap[osArch()] || osArch()
 const pkgName = `@brianlovin/hn-cli-${platform}-${arch}`
 const binary = platform === "windows" ? "hn.exe" : "hn"
 
@@ -41,15 +43,15 @@ const binary = platform === "windows" ? "hn.exe" : "hn"
 function findBinary(startDir) {
   let current = startDir
   while (true) {
-    const modules = path.join(current, "node_modules")
-    if (fs.existsSync(modules)) {
+    const modules = join(current, "node_modules")
+    if (existsSync(modules)) {
       // Check for the platform-specific package
-      const candidate = path.join(modules, "@brianlovin", `hn-cli-${platform}-${arch}`, "bin", binary)
-      if (fs.existsSync(candidate)) {
+      const candidate = join(modules, "@brianlovin", `hn-cli-${platform}-${arch}`, "bin", binary)
+      if (existsSync(candidate)) {
         return candidate
       }
     }
-    const parent = path.dirname(current)
+    const parent = dirname(current)
     if (parent === current) break
     current = parent
   }

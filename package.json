@@ -1,6 +1,6 @@
 {
   "name": "@brianlovin/hn-cli",
-  "version": "0.4.12",
+  "version": "0.4.13",
   "description": "Interactive terminal UI for browsing Hacker News",
   "module": "src/index.ts",
   "type": "module",
