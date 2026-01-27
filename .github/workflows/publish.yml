@@ -36,7 +36,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       # Publish platform packages first (they must exist before main package)
-      # Using OIDC trusted publishing (same as main package)
+      # Copy npmrc to each package directory so npm finds auth when publishing from subdirectories
       - name: Publish platform packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -44,6 +44,7 @@ jobs:
           for dir in dist/binaries/*/; do
             name=$(basename "$dir")
             echo "Publishing $name..."
+            cp "$NPM_CONFIG_USERCONFIG" "$dir/.npmrc"
             (cd "$dir" && npm publish --provenance --access public) || echo "Package may already exist, continuing..."
           done
 
