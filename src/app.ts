@@ -1776,12 +1776,14 @@ export class HackerNewsApp {
     }
 
     try {
+      const cmd = clipboardCmd[0]!;
+      const args = clipboardCmd.slice(1);
       await new Promise<void>((resolve) => {
-        const proc = spawn(clipboardCmd[0], clipboardCmd.slice(1), { stdio: ["pipe", "ignore", "ignore"] });
-        proc.stdin?.write(selectedText);
-        proc.stdin?.end();
+        const proc = spawn(cmd, args, { stdio: ["pipe", "ignore", "ignore"] });
         proc.on("close", () => resolve());
         proc.on("error", () => resolve());
+        proc.stdin?.write(selectedText);
+        proc.stdin?.end();
       });
     } catch {
       // Clipboard command not available or failed - silently fail

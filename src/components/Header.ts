@@ -20,12 +20,14 @@ async function copyToClipboard(text: string): Promise<boolean> {
   }
 
   try {
-    return new Promise((resolve) => {
-      const proc = spawn(clipboardCmd[0], clipboardCmd.slice(1), { stdio: ["pipe", "ignore", "ignore"] });
-      proc.stdin?.write(text);
-      proc.stdin?.end();
+    const cmd = clipboardCmd[0]!;
+    const args = clipboardCmd.slice(1);
+    return new Promise<boolean>((resolve) => {
+      const proc = spawn(cmd, args, { stdio: ["pipe", "ignore", "ignore"] });
       proc.on("close", () => resolve(true));
       proc.on("error", () => resolve(false));
+      proc.stdin?.write(text);
+      proc.stdin?.end();
     });
   } catch {
     return false;

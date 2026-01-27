@@ -1,25 +1,70 @@
-#!/bin/sh
+#!/usr/bin/env node
 
-# Check if bun is installed
-if ! command -v bun >/dev/null 2>&1; then
-    echo ""
-    echo "Error: Bun runtime is required but not installed."
-    echo ""
-    echo "This CLI uses @opentui/core which requires Bun to run."
-    echo ""
-    echo "Install Bun:"
-    echo "  curl -fsSL https://bun.sh/install | bash"
-    echo ""
-    echo "Or via npm:"
-    echo "  npm install -g bun"
-    echo ""
-    echo "For more options, visit: https://bun.sh/docs/installation"
-    echo ""
-    exit 1
-fi
+const childProcess = require("child_process")
+const fs = require("fs")
+const path = require("path")
+const os = require("os")
 
-# Get the directory where this script is located
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+function run(target) {
+  const result = childProcess.spawnSync(target, process.argv.slice(2), {
+    stdio: "inherit",
+  })
+  if (result.error) {
+    console.error(result.error.message)
+    process.exit(1)
+  }
+  const code = typeof result.status === "number" ? result.status : 0
+  process.exit(code)
+}
 
-# Run the actual CLI with bun
-exec bun "$SCRIPT_DIR/../dist/cli.js" "$@"
+// Resolve symlinks to get the real script location
+const scriptPath = fs.realpathSync(__filename)
+const scriptDir = path.dirname(scriptPath)
+
+// Map platform/arch to package names
+const platformMap = {
+  darwin: "darwin",
+  linux: "linux",
+  win32: "windows",
+}
+const archMap = {
+  x64: "x64",
+  arm64: "arm64",
+}
+
+const platform = platformMap[os.platform()] || os.platform()
+const arch = archMap[os.arch()] || os.arch()
+const pkgName = `@brianlovin/hn-cli-${platform}-${arch}`
+const binary = platform === "windows" ? "hn.exe" : "hn"
+
+// Search for the platform-specific binary in node_modules
+function findBinary(startDir) {
+  let current = startDir
+  while (true) {
+    const modules = path.join(current, "node_modules")
+    if (fs.existsSync(modules)) {
+      // Check for the platform-specific package
+      const candidate = path.join(modules, "@brianlovin", `hn-cli-${platform}-${arch}`, "bin", binary)
+      if (fs.existsSync(candidate)) {
+        return candidate
+      }
+    }
+    const parent = path.dirname(current)
+    if (parent === current) break
+    current = parent
+  }
+  return null
+}
+
+const resolved = findBinary(scriptDir)
+if (!resolved) {
+  console.error("")
+  console.error(`Error: Could not find the HN CLI binary for your platform (${platform}-${arch}).`)
+  console.error("")
+  console.error("You can try manually installing the platform package:")
+  console.error(`  npm install ${pkgName}`)
+  console.error("")
+  process.exit(1)
+}
+
+run(resolved)

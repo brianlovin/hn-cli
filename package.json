@@ -16,6 +16,8 @@
     "dev": "bun run --watch src/index.ts",
     "dev:update": "HN_SIMULATE_VERSION=0.1.0 HN_SIMULATE_LATEST=0.3.0 bun run --watch src/index.ts",
     "build": "bun build src/index.ts --outdir dist --target bun --minify --entry-naming cli.js",
+    "build:binaries": "bun run script/build-binaries.ts",
+    "build:binaries:single": "bun run script/build-binaries.ts --single",
     "prepublishOnly": "bun run build && bun run typecheck",
     "test": "bun test",
     "typecheck": "bun tsc --noEmit",
@@ -53,5 +55,12 @@
     "@anthropic-ai/sdk": "^0.71.2",
     "@opentui/core": "^0.1.75",
     "openai": "^6.16.0"
+  },
+  "optionalDependencies": {
+    "@brianlovin/hn-cli-darwin-arm64": "0.4.3",
+    "@brianlovin/hn-cli-darwin-x64": "0.4.3",
+    "@brianlovin/hn-cli-linux-arm64": "0.4.3",
+    "@brianlovin/hn-cli-linux-x64": "0.4.3",
+    "@brianlovin/hn-cli-windows-x64": "0.4.3"
   }
 }

@@ -12,6 +12,13 @@
       "devDependencies": {
         "@types/bun": "latest",
       },
+      "optionalDependencies": {
+        "@brianlovin/hn-cli-darwin-arm64": "0.4.3",
+        "@brianlovin/hn-cli-darwin-x64": "0.4.3",
+        "@brianlovin/hn-cli-linux-arm64": "0.4.3",
+        "@brianlovin/hn-cli-linux-x64": "0.4.3",
+        "@brianlovin/hn-cli-windows-x64": "0.4.3",
+      },
       "peerDependencies": {
         "typescript": "^5",
       },
