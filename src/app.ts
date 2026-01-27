@@ -18,6 +18,14 @@ import { type UpdateInfo } from "./version";
 import { COLORS, detectTheme } from "./theme";
 import { LOADING_CHARS } from "./utils";
 
+// Import keyboard handlers
+import {
+  handleMainKey,
+  handleChatKey,
+  handleSettingsKey,
+  handleAuthSetupKey,
+} from "./handlers";
+
 // Import components
 import {
   createHeader,
@@ -58,26 +66,19 @@ import {
   stopTypingIndicator,
   type ChatPanelState,
 } from "./components/ChatPanel";
-import { renderSuggestions, navigateSuggestion } from "./components/Suggestions";
+import { renderSuggestions } from "./components/Suggestions";
 import {
   renderAuthSetup,
   initAuthSetupState,
-  navigateAuthProvider,
-  confirmAuthProvider,
   type AuthSetupState,
 } from "./components/AuthSetup";
 import {
   renderSettings,
   initSettingsState,
-  navigateSettings,
-  selectSettingsItem,
-  adjustSettingValue,
-  goBackInSettings,
-  getSelectedProviderUrl,
   type SettingsState,
   type SettingsAction,
 } from "./components/SettingsPanel";
-import { updateSetting, resetSettings, loadSettings, type FilterSettings } from "./settings";
+import { updateSetting, loadSettings, type FilterSettings } from "./settings";
 
 // Import services
 import {
@@ -367,87 +368,36 @@ export class HackerNewsApp {
 
       // Settings mode handlers
       if (this.settingsMode && this.settingsState) {
-        this.handleSettingsKey(key);
+        this.handleSettingsKeyPress(key);
         return;
       }
 
       // Auth setup mode handlers
       if (this.authSetupMode && this.authSetupState) {
-        this.handleAuthSetupKey(key);
+        this.handleAuthSetupKeyPress(key);
         return;
       }
 
       // Chat mode handlers
       if (this.chatMode && this.chatPanelState) {
-        this.handleChatKey(key);
+        this.handleChatKeyPress(key);
         return;
       }
 
       // Main view handlers
-      this.handleMainKey(key);
+      this.handleMainKeyPress(key);
     });
   }
 
-  private handleSettingsKey(key: any) {
+  private handleSettingsKeyPress(key: any) {
     if (!this.settingsState) return;
 
-    if (key.name === "escape") {
-      if (!goBackInSettings(this.settingsState)) {
-        this.hideSettings();
-      } else {
-        this.rerenderSettings();
-      }
-      return;
-    }
-
-    if (key.name === "j" || key.name === "down") {
-      navigateSettings(this.settingsState, 1, getConfiguredProvider() || "anthropic");
-      this.rerenderSettings();
-    } else if (key.name === "k" || key.name === "up") {
-      navigateSettings(this.settingsState, -1, getConfiguredProvider() || "anthropic");
-      this.rerenderSettings();
-    } else if (key.name === "tab") {
-      // Open API key URL if a provider without a key is selected
-      const url = getSelectedProviderUrl(
-        this.settingsState,
-        getConfiguredProvider() || "anthropic",
-      );
-      if (url) {
-        this.callbacks.onOpenUrl?.(url);
-      }
-    } else if (key.name === "left" || key.name === "h") {
-      // Decrease setting value
-      const action = adjustSettingValue(
-        this.settingsState,
-        getConfiguredProvider() || "anthropic",
-        -1,
-      );
-      if (action) {
-        this.handleSettingsAction(action);
-      }
-    } else if (key.name === "right" || key.name === "l") {
-      // Increase setting value
-      const action = adjustSettingValue(
-        this.settingsState,
-        getConfiguredProvider() || "anthropic",
-        1,
-      );
-      if (action) {
-        this.handleSettingsAction(action);
-      }
-    } else if (key.name === "return" || key.name === "enter") {
-      const action = selectSettingsItem(
-        this.settingsState,
-        getConfiguredProvider() || "anthropic",
-      );
-      if (action) {
-        this.handleSettingsAction(action);
-      }
-    } else if (key.name === "r") {
-      // Reset all filter settings to defaults
-      resetSettings();
-      this.rerenderSettings();
-    }
+    handleSettingsKey(key, this.settingsState, getConfiguredProvider() || "anthropic", {
+      hideSettings: () => this.hideSettings(),
+      rerenderSettings: () => this.rerenderSettings(),
+      handleSettingsAction: (action) => this.handleSettingsAction(action),
+      openUrl: (url) => this.callbacks.onOpenUrl?.(url),
+    });
   }
 
   private handleSettingsAction(action: NonNullable<SettingsAction>) {
@@ -527,183 +477,40 @@ export class HackerNewsApp {
     }
   }
 
-  private handleAuthSetupKey(key: any) {
+  private handleAuthSetupKeyPress(key: any) {
     if (!this.authSetupState) return;
 
-    if (key.name === "escape") {
-      this.hideAuthSetup();
-      return;
-    }
-
-    if (this.authSetupState.step === "provider") {
-      if (key.name === "j" || key.name === "down") {
-        navigateAuthProvider(this.authSetupState, 1);
-        this.showAuthSetupUI();
-      } else if (key.name === "k" || key.name === "up") {
-        navigateAuthProvider(this.authSetupState, -1);
-        this.showAuthSetupUI();
-      } else if (key.name === "return" || key.name === "enter") {
-        confirmAuthProvider(this.authSetupState);
-        this.showAuthSetupUI();
-      }
-    }
+    handleAuthSetupKey(key, this.authSetupState, {
+      hideAuthSetup: () => this.hideAuthSetup(),
+      showAuthSetupUI: () => this.showAuthSetupUI(),
+    });
   }
 
-  private handleChatKey(key: any) {
+  private handleChatKeyPress(key: any) {
     if (!this.chatPanelState) return;
 
-    if (key.name === "escape") {
-      this.hideChatView();
-      return;
-    }
-
-    // Cmd+j/Cmd+k to navigate between stories
-    if (key.super && (key.name === "j" || key.name === "k")) {
-      const delta = key.name === "j" ? 1 : -1;
-      this.navigateStory(delta);
-      return;
-    }
-
-    const suggestionsState = this.chatPanelState.suggestions;
-
-    // Suggestion navigation when input is empty
-    if (
-      suggestionsState.suggestions.length > 0 &&
-      this.chatPanelState.input &&
-      !this.chatPanelState.input.plainText.trim()
-    ) {
-      if (key.name === "up" || key.name === "k") {
-        if (suggestionsState.selectedIndex === -1) {
-          // Input was focused with no selection, select the last suggestion
-          suggestionsState.selectedIndex = suggestionsState.suggestions.length - 1;
-        } else if (suggestionsState.selectedIndex > 0) {
-          // Move up in suggestions
-          suggestionsState.selectedIndex--;
-        }
-        // Blur input when navigating suggestions
-        this.chatPanelState.input.blur();
-        renderSuggestions(this.ctx, suggestionsState);
-        return;
-      } else if (key.name === "down" || key.name === "j") {
-        if (suggestionsState.selectedIndex === suggestionsState.suggestions.length - 1) {
-          // At the last suggestion, focus the input and deselect
-          suggestionsState.selectedIndex = -1;
-          this.chatPanelState.input.focus();
-        } else if (suggestionsState.selectedIndex >= 0) {
-          // Move down in suggestions, blur input
-          suggestionsState.selectedIndex++;
-          this.chatPanelState.input.blur();
-        }
-        renderSuggestions(this.ctx, suggestionsState);
-        return;
-      }
-    }
-
-    // Handle Tab key to insert suggestion into input for editing
-    if (
-      key.name === "tab" &&
-      suggestionsState.selectedIndex >= 0 &&
-      suggestionsState.suggestions.length > 0
-    ) {
-      const suggestion = suggestionsState.suggestions[suggestionsState.selectedIndex];
-      if (suggestion && this.chatPanelState.input) {
-        this.chatPanelState.input.focus();
-        this.chatPanelState.input.clear();
-        this.chatPanelState.input.insertText(suggestion + " ");
-        // Clear suggestions so user can type freely
-        suggestionsState.suggestions = [];
-        suggestionsState.selectedIndex = -1;
-        renderSuggestions(this.ctx, suggestionsState);
-        return;
-      }
-    }
-
-    // Handle Enter key for chat submission
-    if ((key.name === "return" || key.name === "enter") && !key.shift) {
-      if (this.chatPanelState.input && this.chatPanelState.input.plainText.trim()) {
-        this.sendChatMessage();
-        return;
-      }
-      if (suggestionsState.selectedIndex >= 0 && suggestionsState.suggestions.length > 0) {
-        this.selectSuggestion();
-        return;
-      }
-      return;
-    }
-
-    // Clear suggestions and focus input when user starts typing
-    if (
-      suggestionsState.suggestions.length > 0 &&
-      key.sequence &&
-      key.sequence.length === 1 &&
-      !key.ctrl &&
-      !key.meta
-    ) {
-      const charCode = key.sequence.charCodeAt(0);
-      if (charCode >= 32 && charCode <= 126) {
-        // Focus input if it was blurred while browsing suggestions
-        if (this.chatPanelState.input) {
-          this.chatPanelState.input.focus();
-        }
-        suggestionsState.suggestions = [];
-        suggestionsState.selectedIndex = -1;
-        renderSuggestions(this.ctx, suggestionsState);
-      }
-    }
-
-    // Restore suggestions when backspace clears the input
-    if (
-      key.name === "backspace" &&
-      this.chatPanelState.input &&
-      suggestionsState.originalSuggestions.length > 0
-    ) {
-      setTimeout(() => {
-        if (
-          this.chatPanelState?.input &&
-          !this.chatPanelState.input.plainText.trim() &&
-          this.chatPanelState.suggestions.suggestions.length === 0
-        ) {
-          this.chatPanelState.suggestions.suggestions = [...this.chatPanelState.suggestions.originalSuggestions];
-          this.chatPanelState.suggestions.selectedIndex = this.chatPanelState.suggestions.suggestions.length - 1;
-          renderSuggestions(this.ctx, this.chatPanelState.suggestions);
-        }
-      }, 10);
-    }
+    handleChatKey(key, this.ctx, this.chatPanelState, {
+      hideChatView: () => this.hideChatView(),
+      navigateStory: (delta) => this.navigateStory(delta),
+      sendChatMessage: () => this.sendChatMessage(),
+      selectSuggestion: () => this.selectSuggestion(),
+    });
   }
 
-  private handleMainKey(key: any) {
-    if (key.name === "s") {
-      telemetry.track("settings_opened");
-      this.settingsIntent = "settings";
-      this.showSettings();
-      return;
-    }
-
-    if (key.name === "j") {
-      this.navigateStory(1);
-    } else if (key.name === "k") {
-      this.navigateStory(-1);
-    } else if (key.name === "down") {
-      this.scrollComments(3);
-    } else if (key.name === "up") {
-      this.scrollComments(-3);
-    } else if (key.name === "space" || key.name === " ") {
-      telemetry.track("comment_nav");
-      // Space navigates to next root comment only (forward)
-      this.navigateToNextComment();
-    } else if (key.name === "o") {
-      telemetry.track("url_opened", { type: "url" });
-      this.openStoryUrl();
-    } else if (key.name === "c") {
-      telemetry.track("chat_opened");
-      this.openChat();
-    } else if (key.name === "r") {
-      telemetry.track("refresh");
-      this.refresh();
-    } else if (key.name === "t") {
-      telemetry.track("tldr_requested");
-      this.handleTldrRequest();
-    }
+  private handleMainKeyPress(key: any) {
+    handleMainKey(key, {
+      navigateStory: (delta) => this.navigateStory(delta),
+      navigateToNextComment: () => this.navigateToNextComment(),
+      scrollComments: (lines) => this.scrollComments(lines),
+      openStoryUrl: () => this.openStoryUrl(),
+      openChat: () => this.openChat(),
+      refresh: () => this.refresh(),
+      handleTldrRequest: () => this.handleTldrRequest(),
+      showSettings: () => {
+        this.settingsIntent = "settings";
+        this.showSettings();
+      },
+    });
   }
 
   private async loadPosts() {
