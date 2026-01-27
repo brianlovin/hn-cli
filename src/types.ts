@@ -1,5 +1,17 @@
 export type HackerNewsPostType = "link" | "comment" | "job" | "poll" | "story";
 
+/**
+ * Keyboard event structure from OpenTUI
+ */
+export interface KeyEvent {
+  name?: string;
+  shift?: boolean;
+  super?: boolean;
+  ctrl?: boolean;
+  meta?: boolean;
+  sequence?: string;
+}
+
 export interface HackerNewsComment {
   id: number | string;
   user: string | null;
