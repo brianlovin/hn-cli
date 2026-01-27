@@ -36,7 +36,7 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       # Publish platform packages first (they must exist before main package)
-      # Copy npmrc to each package directory so npm finds auth when publishing from subdirectories
+      # Run npm publish from root to avoid working directory issues with auth
       - name: Publish platform packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -44,8 +44,7 @@ jobs:
           for dir in dist/binaries/*/; do
             name=$(basename "$dir")
             echo "Publishing $name..."
-            cp "$NPM_CONFIG_USERCONFIG" "$dir/.npmrc"
-            (cd "$dir" && npm publish --provenance --access public) || echo "Package may already exist, continuing..."
+            npm publish "$dir" --provenance --access public || echo "Package may already exist, continuing..."
           done
 
       # Remove binaries from dist before publishing main package (they're in separate packages)
