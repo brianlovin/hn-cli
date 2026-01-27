@@ -36,15 +36,13 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       # Publish platform packages first (they must exist before main package)
+      # Write .npmrc directly to each package directory with the actual token
       - name: Publish platform packages
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          # Set npm auth explicitly to ensure it works for subdirectory publishing
-          npm config set //registry.npmjs.org/:_authToken $NODE_AUTH_TOKEN
           for dir in dist/binaries/*/; do
             name=$(basename "$dir")
             echo "Publishing $name..."
+            echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > "$dir/.npmrc"
             npm publish "$dir" --provenance --access public || echo "Package may already exist, continuing..."
           done
 
