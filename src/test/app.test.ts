@@ -171,6 +171,40 @@ describe("HackerNewsApp", () => {
       expect(ctx.app.currentRootCommentIndex).toBe(4); // 0-indexed, 5 comments
     });
 
+    it("should scroll down with down arrow key", async () => {
+      const storyDetailState = (ctx.app as any).storyDetailState;
+      expect(storyDetailState.scroll.scrollTop).toBe(0);
+
+      ctx.mockInput.pressKey("ARROW_DOWN");
+      await ctx.renderOnce();
+
+      expect(storyDetailState.scroll.scrollTop).toBe(3);
+    });
+
+    it("should scroll up with up arrow key", async () => {
+      const storyDetailState = (ctx.app as any).storyDetailState;
+      // First scroll down
+      ctx.mockInput.pressKey("ARROW_DOWN");
+      ctx.mockInput.pressKey("ARROW_DOWN");
+      await ctx.renderOnce();
+      expect(storyDetailState.scroll.scrollTop).toBe(6);
+
+      // Then scroll back up
+      ctx.mockInput.pressKey("ARROW_UP");
+      await ctx.renderOnce();
+      expect(storyDetailState.scroll.scrollTop).toBe(3);
+    });
+
+    it("should not scroll above 0 with up arrow", async () => {
+      const storyDetailState = (ctx.app as any).storyDetailState;
+      expect(storyDetailState.scroll.scrollTop).toBe(0);
+
+      ctx.mockInput.pressKey("ARROW_UP");
+      await ctx.renderOnce();
+
+      expect(storyDetailState.scroll.scrollTop).toBe(0);
+    });
+
     it("should scroll to show the target comment", async () => {
       // Create a post with 12 root comments to ensure scrolling is needed
       const mockPost = createMockPostWithComments({}, 12);

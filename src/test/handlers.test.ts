@@ -13,6 +13,7 @@ describe("Main Key Handler", () => {
   let callbacks: {
     navigateStory: ReturnType<typeof mock>;
     navigateToNextComment: ReturnType<typeof mock>;
+    scrollComments: ReturnType<typeof mock>;
     openStoryUrl: ReturnType<typeof mock>;
     openChat: ReturnType<typeof mock>;
     refresh: ReturnType<typeof mock>;
@@ -24,6 +25,7 @@ describe("Main Key Handler", () => {
     callbacks = {
       navigateStory: mock(() => {}),
       navigateToNextComment: mock(() => {}),
+      scrollComments: mock(() => {}),
       openStoryUrl: mock(() => {}),
       openChat: mock(() => {}),
       refresh: mock(() => {}),
@@ -45,6 +47,16 @@ describe("Main Key Handler", () => {
   it("should call navigateToNextComment on space key", () => {
     handleMainKey({ name: "space" }, callbacks);
     expect(callbacks.navigateToNextComment).toHaveBeenCalled();
+  });
+
+  it("should call scrollComments(3) on down arrow key", () => {
+    handleMainKey({ name: "down" }, callbacks);
+    expect(callbacks.scrollComments).toHaveBeenCalledWith(3);
+  });
+
+  it("should call scrollComments(-3) on up arrow key", () => {
+    handleMainKey({ name: "up" }, callbacks);
+    expect(callbacks.scrollComments).toHaveBeenCalledWith(-3);
   });
 
   it("should call openStoryUrl on 'o' key", () => {
@@ -76,6 +88,7 @@ describe("Main Key Handler", () => {
     handleMainKey({ name: "x" }, callbacks);
     expect(callbacks.navigateStory).not.toHaveBeenCalled();
     expect(callbacks.navigateToNextComment).not.toHaveBeenCalled();
+    expect(callbacks.scrollComments).not.toHaveBeenCalled();
     expect(callbacks.openStoryUrl).not.toHaveBeenCalled();
     expect(callbacks.openChat).not.toHaveBeenCalled();
     expect(callbacks.refresh).not.toHaveBeenCalled();

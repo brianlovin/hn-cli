@@ -7,6 +7,7 @@ import * as telemetry from "../telemetry";
 export interface MainKeyCallbacks {
   navigateStory: (delta: number) => void;
   navigateToNextComment: () => void;
+  scrollComments: (lines: number) => void;
   openStoryUrl: () => void;
   openChat: () => void;
   refresh: () => void;
@@ -28,6 +29,10 @@ export function handleMainKey(
     callbacks.navigateStory(1);
   } else if (key.name === "k") {
     callbacks.navigateStory(-1);
+  } else if (key.name === "down") {
+    callbacks.scrollComments(3);
+  } else if (key.name === "up") {
+    callbacks.scrollComments(-3);
   } else if (key.name === "space" || key.name === " ") {
     telemetry.track("comment_nav");
     callbacks.navigateToNextComment();

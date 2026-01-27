@@ -501,6 +501,7 @@ export class HackerNewsApp {
     handleMainKey(key, {
       navigateStory: (delta) => this.navigateStory(delta),
       navigateToNextComment: () => this.navigateToNextComment(),
+      scrollComments: (lines) => this.scrollComments(lines),
       openStoryUrl: () => this.openStoryUrl(),
       openChat: () => this.openChat(),
       refresh: () => this.refresh(),
@@ -902,6 +903,13 @@ export class HackerNewsApp {
       this.rootCommentIndex--;
       scrollToRootComment(this.storyDetailState, this.rootCommentIndex);
     }
+  }
+
+  private scrollComments(lines: number) {
+    if (!this.selectedPost) return;
+    const scroll = this.storyDetailState.scroll;
+    const newScrollTop = scroll.scrollTop + lines;
+    scroll.scrollTop = Math.max(0, newScrollTop);
   }
 
   private openStoryUrl() {
