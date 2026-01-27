@@ -1,6 +1,7 @@
 /**
  * Settings mode keyboard handlers
  */
+import type { KeyEvent } from "../types";
 import type { Provider } from "../config";
 import {
   navigateSettings,
@@ -21,7 +22,7 @@ export interface SettingsKeyCallbacks {
 }
 
 export function handleSettingsKey(
-  key: { name?: string },
+  key: KeyEvent,
   settingsState: SettingsState,
   currentProvider: Provider,
   callbacks: SettingsKeyCallbacks

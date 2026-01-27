@@ -2,6 +2,7 @@
  * Chat mode keyboard handlers
  */
 import type { RenderContext } from "@opentui/core";
+import type { KeyEvent } from "../types";
 import type { ChatPanelState } from "../components/ChatPanel";
 import { renderSuggestions } from "../components/Suggestions";
 
@@ -13,7 +14,7 @@ export interface ChatKeyCallbacks {
 }
 
 export function handleChatKey(
-  key: { name?: string; shift?: boolean; super?: boolean; ctrl?: boolean; meta?: boolean; sequence?: string },
+  key: KeyEvent,
   ctx: RenderContext,
   chatPanelState: ChatPanelState,
   callbacks: ChatKeyCallbacks
@@ -123,13 +124,17 @@ export function handleChatKey(
     chatPanelState.input &&
     suggestionsState.originalSuggestions.length > 0
   ) {
+    // Capture original suggestions to avoid closure over potentially stale state
+    const originalSuggestions = [...suggestionsState.originalSuggestions];
     setTimeout(() => {
+      // Re-check state validity since chat panel may have been closed
       if (
         chatPanelState?.input &&
+        chatPanelState?.suggestions &&
         !chatPanelState.input.plainText.trim() &&
         chatPanelState.suggestions.suggestions.length === 0
       ) {
-        chatPanelState.suggestions.suggestions = [...chatPanelState.suggestions.originalSuggestions];
+        chatPanelState.suggestions.suggestions = [...originalSuggestions];
         chatPanelState.suggestions.selectedIndex = chatPanelState.suggestions.suggestions.length - 1;
         renderSuggestions(ctx, chatPanelState.suggestions);
       }

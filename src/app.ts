@@ -498,11 +498,6 @@ export class HackerNewsApp {
   }
 
   private handleMainKeyPress(key: any) {
-    // Set settings intent before delegating (needed for proper flow)
-    if (key.name === "s") {
-      this.settingsIntent = "settings";
-    }
-
     handleMainKey(key, {
       navigateStory: (delta) => this.navigateStory(delta),
       navigateToNextComment: () => this.navigateToNextComment(),
@@ -510,7 +505,10 @@ export class HackerNewsApp {
       openChat: () => this.openChat(),
       refresh: () => this.refresh(),
       handleTldrRequest: () => this.handleTldrRequest(),
-      showSettings: () => this.showSettings(),
+      showSettings: () => {
+        this.settingsIntent = "settings";
+        this.showSettings();
+      },
     });
   }
 

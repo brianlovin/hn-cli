@@ -1,6 +1,7 @@
 /**
  * Main view keyboard handlers (when not in chat, settings, or auth mode)
  */
+import type { KeyEvent } from "../types";
 import * as telemetry from "../telemetry";
 
 export interface MainKeyCallbacks {
@@ -14,7 +15,7 @@ export interface MainKeyCallbacks {
 }
 
 export function handleMainKey(
-  key: { name?: string },
+  key: KeyEvent,
   callbacks: MainKeyCallbacks
 ): void {
   if (key.name === "s") {

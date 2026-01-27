@@ -1,6 +1,7 @@
 /**
  * Auth setup mode keyboard handlers
  */
+import type { KeyEvent } from "../types";
 import {
   navigateAuthProvider,
   confirmAuthProvider,
@@ -13,7 +14,7 @@ export interface AuthKeyCallbacks {
 }
 
 export function handleAuthSetupKey(
-  key: { name?: string },
+  key: KeyEvent,
   authSetupState: AuthSetupState,
   callbacks: AuthKeyCallbacks
 ): void {
