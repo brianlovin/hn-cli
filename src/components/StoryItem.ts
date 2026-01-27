@@ -1,9 +1,6 @@
 import { BoxRenderable, TextRenderable, type RenderContext } from "@opentui/core";
 import type { HackerNewsPost } from "../types";
 import { COLORS } from "../theme";
-import { truncateText } from "../utils";
-
-const MAX_TITLE_LENGTH = 80;
 
 export interface StoryItemCallbacks {
   onSelect: (index: number) => void;
@@ -47,12 +44,11 @@ export function createStoryItem(
   });
   item.add(content);
 
-  // Title (truncated to ~2 lines worth of characters)
+  // Title (full text, wraps naturally)
   const titleText = new TextRenderable(ctx, {
     id: `title-${post.id}`,
-    content: truncateText(post.title, MAX_TITLE_LENGTH),
+    content: post.title,
     fg: isSelected ? COLORS.accent : COLORS.textPrimary,
-    maxHeight: 2,
   });
   content.add(titleText);
 
