@@ -13,11 +13,11 @@
         "@types/bun": "latest",
       },
       "optionalDependencies": {
-        "@brianlovin/hn-cli-darwin-arm64": "0.4.12",
-        "@brianlovin/hn-cli-darwin-x64": "0.4.12",
-        "@brianlovin/hn-cli-linux-arm64": "0.4.12",
-        "@brianlovin/hn-cli-linux-x64": "0.4.12",
-        "@brianlovin/hn-cli-windows-x64": "0.4.12",
+        "@brianlovin/hn-cli-darwin-arm64": "0.4.14",
+        "@brianlovin/hn-cli-darwin-x64": "0.4.14",
+        "@brianlovin/hn-cli-linux-arm64": "0.4.14",
+        "@brianlovin/hn-cli-linux-x64": "0.4.14",
+        "@brianlovin/hn-cli-windows-x64": "0.4.14",
       },
       "peerDependencies": {
         "typescript": "^5",
@@ -28,6 +28,16 @@
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.71.2", "", { "dependencies": { "json-schema-to-ts": "^3.1.1" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-TGNDEUuEstk/DKu0/TflXAEt+p+p/WhTlFzEnoosvbaDU2LTjm42igSdlL0VijrKpWejtOKxX0b8A7uc+XiSAQ=="],
 
     "@babel/runtime": ["@babel/runtime@7.28.6", "", {}, "sha512-05WQkdpL9COIMz4LjTxGpPNCdlpyimKppYNoJ5Di5EUObifl8t4tuLuUBBZEpoLYOmfvIWrsp9fCl0HoPRVTdA=="],
+
+    "@brianlovin/hn-cli-darwin-arm64": ["@brianlovin/hn-cli-darwin-arm64@0.4.14", "", { "os": "darwin", "cpu": "arm64" }, "sha512-EFYBHFtMJFEE2bq4gHYXki+5tbURny1gP+pfoW75guDl6I6f5/+gdVXNyAXbOxcitZShbyzNL/UfwfbugDRqrA=="],
+
+    "@brianlovin/hn-cli-darwin-x64": ["@brianlovin/hn-cli-darwin-x64@0.4.14", "", { "os": "darwin", "cpu": "x64" }, "sha512-HsRyPVfx+l4eZ+5TzkgshXHZ6iHGoXlSqwLesW3M8riiOR+PU95ivuMHL621igBlHQjqjsZCiHZVczvYlHw62w=="],
+
+    "@brianlovin/hn-cli-linux-arm64": ["@brianlovin/hn-cli-linux-arm64@0.4.14", "", { "os": "linux", "cpu": "arm64" }, "sha512-1C/UieCkDaiHzx1FAYmrs2/iKw+qoySvrFCLa9Hyx7RGxqKFF5xILOtBuqC3OU92DSmnSt9WpSnH+6ioXkMssA=="],
+
+    "@brianlovin/hn-cli-linux-x64": ["@brianlovin/hn-cli-linux-x64@0.4.14", "", { "os": "linux", "cpu": "x64" }, "sha512-2HO9JqRBWSww4MZrB4tcECO/Ub2RSxRmJDt7nGGXYmTgvt0uEGfcElCTLCUrukNRZhVqSL1ERaFMU+0aJkhwbw=="],
+
+    "@brianlovin/hn-cli-windows-x64": ["@brianlovin/hn-cli-windows-x64@0.4.14", "", { "os": "win32", "cpu": "x64" }, "sha512-EO6EkPMD5QcVXQoxJ/2qv1lk8/miY2naV/X+LJGVjYwvN+RFw6GRPqptH71SjHabyB9pakLUNIEtyvV69laTFA=="],
 
     "@dimforge/rapier2d-simd-compat": ["@dimforge/rapier2d-simd-compat@0.17.3", "", {}, "sha512-bijvwWz6NHsNj5e5i1vtd3dU2pDhthSaTUZSh14DUGGKJfw8eMnlWZsxwHBxB/a3AXVNDjL9abuHw1k9FGR+jg=="],
 
