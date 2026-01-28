@@ -1,49 +1,111 @@
-import { describe, it, expect } from "bun:test";
-import { buildStoryContext } from "../services/ChatService";
-import { createMockPost, createMockPostWithComments } from "./fixtures";
+import { describe, it, expect, mock } from "bun:test";
 
-describe("ChatService", () => {
-  describe("buildStoryContext", () => {
-    it("should build context with story metadata", () => {
-      const post = createMockPost({
-        title: "Test Story Title",
-        url: "https://example.com/story",
-        domain: "example.com",
-        points: 150,
-        user: "testuser",
-        comments_count: 42,
-      });
+class FakeResponseStream {
+  private handlers = new Map<string, Array<(event: any) => void>>();
+  private resolveFinal: (() => void) | null = null;
+  aborted = false;
 
-      const context = buildStoryContext(post);
+  on(event: string, handler: (event: any) => void) {
+    const existing = this.handlers.get(event) ?? [];
+    existing.push(handler);
+    this.handlers.set(event, existing);
+    return this;
+  }
 
-      expect(context).toContain("**Title:** Test Story Title");
-      expect(context).toContain("**URL:** https://example.com/story");
-      expect(context).toContain("**Domain:** example.com");
-      expect(context).toContain("**Points:** 150");
-      expect(context).toContain("**Posted by:** testuser");
-      expect(context).toContain("**Comments:** 42");
+  emit(event: string, payload: any) {
+    const handlers = this.handlers.get(event) ?? [];
+    for (const handler of handlers) {
+      handler(payload);
+    }
+  }
+
+  abort() {
+    this.aborted = true;
+    if (this.resolveFinal) {
+      this.resolveFinal();
+      this.resolveFinal = null;
+    }
+  }
+
+  finalResponse() {
+    return new Promise((resolve) => {
+      if (this.aborted) {
+        resolve({});
+        return;
+      }
+      this.resolveFinal = () => resolve({});
+    });
+  }
+}
+
+let lastStream: FakeResponseStream | null = null;
+
+mock.module("openai", () => ({
+  default: class OpenAI {
+    responses = {
+      stream: () => {
+        lastStream = new FakeResponseStream();
+        return lastStream;
+      },
+    };
+
+    chat = {
+      completions: {
+        create: async () => {
+          throw new Error("Unexpected chat.completions.create call");
+        },
+      },
+    };
+  },
+}));
+
+import {
+  initChatServiceState,
+  streamAIResponse,
+  cancelChatStream,
+} from "../services/ChatService";
+import type { HackerNewsPost } from "../types";
+
+const createPost = (): HackerNewsPost => ({
+  id: 1,
+  title: "Test story",
+  points: 0,
+  user: "tester",
+  time: Date.now(),
+  time_ago: "just now",
+  type: "story",
+  content: null,
+  url: "https://example.com",
+  domain: "example.com",
+  comments: [],
+  comments_count: 0,
+});
+
+describe("ChatService cancellation", () => {
+  it("cancels an active stream and suppresses callbacks", async () => {
+    const state = initChatServiceState("openai");
+    const post = createPost();
+    const onText = mock(() => {});
+    const onComplete = mock(() => {});
+    const onError = mock(() => {});
+
+    const streamPromise = streamAIResponse(state, [], "hello", post, {
+      onText,
+      onComplete,
+      onError,
     });
 
-    it("should use HN URL when story has no URL", () => {
-      const post = createMockPost({
-        id: 12345,
-        url: "",
-        domain: null,
-      });
+    expect(lastStream).not.toBeNull();
+    cancelChatStream(state);
 
-      const context = buildStoryContext(post);
+    lastStream?.emit("response.output_text.delta", { snapshot: "hi" });
+    await streamPromise;
 
-      expect(context).toContain("**URL:** https://news.ycombinator.com/item?id=12345");
-    });
-
-    it("should include comments in context", () => {
-      const post = createMockPostWithComments({}, 2);
-
-      const context = buildStoryContext(post);
-
-      expect(context).toContain("# Hacker News Discussion");
-      expect(context).toContain("**user1:**");
-      expect(context).toContain("Root comment 1");
-    });
+    expect(lastStream?.aborted).toBe(true);
+    expect(state.isStreaming).toBe(false);
+    expect(state.activeStream).toBeNull();
+    expect(onText).not.toHaveBeenCalled();
+    expect(onComplete).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
   });
 });

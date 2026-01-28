@@ -87,6 +87,7 @@ import {
   streamAIResponse,
   generateSuggestions,
   generateFollowUpQuestions,
+  cancelChatStream,
   resetChatServiceClients,
   setProvider,
   type ChatServiceState,
@@ -852,6 +853,7 @@ export class HackerNewsApp {
     this.chatPanelState = createChatPanel(this.ctx, this.selectedPost, {
       onOpenStoryUrl: () => this.openStoryUrl(),
       onSubmit: () => this.sendChatMessage(),
+      onClearChat: () => this.clearChat(),
     });
 
     // Add chat panel children directly to detail panel
@@ -953,6 +955,7 @@ export class HackerNewsApp {
     this.chatPanelState = createChatPanel(this.ctx, this.selectedPost, {
       onOpenStoryUrl: () => this.openStoryUrl(),
       onSubmit: () => this.sendChatMessage(),
+      onClearChat: () => this.clearChat(),
     });
 
     // Add chat panel children directly to detail panel
@@ -1162,6 +1165,51 @@ export class HackerNewsApp {
       clearInterval(this.suggestionLoadingInterval);
       this.suggestionLoadingInterval = null;
     }
+  }
+
+  /**
+   * Clears the chat history for the current story and resets to initial state.
+   */
+  private clearChat() {
+    if (!this.chatPanelState || !this.selectedPost || !this.chatServiceState) return;
+
+    if (this.chatServiceState.isStreaming) {
+      cancelChatStream(this.chatServiceState);
+      stopTypingIndicator(this.chatPanelState);
+      this.stopAiIndicator(this.selectedIndex);
+    }
+
+    telemetry.track("chat_clear");
+
+    // Clear the saved session for this story
+    this.savedChatSessions.delete(this.selectedPost.id);
+
+    // Reset follow-up count
+    this.followUpCount = 0;
+
+    // Clear messages and add fresh welcome message
+    this.chatPanelState.messages = [];
+    addChatMessage(
+      this.ctx,
+      this.chatPanelState,
+      "assistant",
+      `Ask me anything about "${this.selectedPost.title}" or the discussion about it on Hacker News...`,
+      this.chatServiceState.provider,
+    );
+
+    // Clear and regenerate suggestions
+    this.chatPanelState.suggestions.suggestions = [];
+    this.chatPanelState.suggestions.originalSuggestions = [];
+    this.chatPanelState.suggestions.selectedIndex = -1;
+    this.chatPanelState.suggestions.loading = true;
+    this.chatPanelState.suggestions.hidden = false;
+    renderSuggestions(this.ctx, this.chatPanelState.suggestions);
+
+    // Generate fresh suggestions
+    this.generateInitialSuggestions();
+
+    // Save to cache (clears the session)
+    this.saveToCache();
   }
 
   /**
@@ -1484,6 +1532,7 @@ export class HackerNewsApp {
       this.chatPanelState = createChatPanel(this.ctx, this.selectedPost, {
         onOpenStoryUrl: () => this.openStoryUrl(),
         onSubmit: () => this.sendChatMessage(),
+        onClearChat: () => this.clearChat(),
       });
 
       for (const child of this.chatPanelState.panel.getChildren()) {

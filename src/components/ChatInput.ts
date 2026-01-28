@@ -58,6 +58,11 @@ export function createChatInput(
     callbacks.onSubmit();
   });
 
+  // Click container to focus input
+  container.on("click", () => {
+    input.focus();
+  });
+
   container.add(input);
 
   return { container, input };
