@@ -1,14 +1,27 @@
 #!/usr/bin/env bun
 import { createCliRenderer } from "@opentui/core";
 import { exec } from "child_process";
+import { platform } from "os";
 import { HackerNewsApp } from "./app";
 import { checkForUpdates, currentVersion } from "./version";
 import { setTelemetryEnabled } from "./config";
 import * as telemetry from "./telemetry";
+import { open } from "fs";
 
 const COLORS = {
   bg: "#1a1a1a",
 };
+
+function openUrl(url: string): void {
+  const os = platform();
+  if (os === "darwin") {
+    exec(`open "${url}"`);
+  } else if (os === "win32") {
+    exec(`start "" "${url}"`);
+  } else {
+    exec(`xdg-open "${url}"`);
+  }
+}
 
 function parseArgs(): { storyId?: number } {
   const args = process.argv.slice(2);
@@ -64,9 +77,7 @@ async function main() {
   });
 
   const app = new HackerNewsApp(renderer, {
-    onOpenUrl: (url) => {
-      exec(`open "${url}"`);
-    },
+    onOpenUrl: openUrl,
     onExit: async () => {
       await telemetry.flushSync();
       renderer.destroy();
