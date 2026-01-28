@@ -210,4 +210,4 @@ This permanently disables telemetry. Your preference is stored locally at `~/.co
 
 ## Credits
 
-Built with [OpenTUI](https://github.com/anthropics/opentui)
+Built with [OpenTUI](https://github.com/anomalyco/opentui)
