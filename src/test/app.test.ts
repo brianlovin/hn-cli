@@ -114,6 +114,80 @@ describe("HackerNewsApp", () => {
     });
   });
 
+  describe("Story List Scroll", () => {
+    it("should scroll down to show off-screen selected story", async () => {
+      // Create more stories than can fit in viewport
+      const posts = createMockPosts(20);
+      ctx.app.setPostsForTesting(posts);
+      await ctx.renderOnce();
+
+      const storyListState = (ctx.app as any).storyListState;
+      expect(storyListState.scroll.scrollTop).toBe(0);
+
+      // Navigate down past the visible viewport (each story is ~3 lines with gap)
+      for (let i = 0; i < 15; i++) {
+        ctx.mockInput.pressKey("j");
+        await ctx.renderer.idle(); // Wait for async selectStory to complete
+        await ctx.renderOnce();
+      }
+
+      // Scroll should have changed to show the selected story
+      expect(ctx.app.currentSelectedIndex).toBe(14);
+      expect(storyListState.scroll.scrollTop).toBeGreaterThan(0);
+    });
+
+    it("should scroll up to show off-screen selected story", async () => {
+      // Create more stories than can fit in viewport
+      const posts = createMockPosts(20);
+      ctx.app.setPostsForTesting(posts);
+      await ctx.renderOnce();
+
+      const storyListState = (ctx.app as any).storyListState;
+
+      // Navigate down to bottom
+      for (let i = 0; i < 19; i++) {
+        ctx.mockInput.pressKey("j");
+        await ctx.renderer.idle();
+        await ctx.renderOnce();
+      }
+      expect(ctx.app.currentSelectedIndex).toBe(18);
+      const scrollAtBottom = storyListState.scroll.scrollTop;
+      expect(scrollAtBottom).toBeGreaterThan(0);
+
+      // Navigate back up past visible viewport
+      for (let i = 0; i < 15; i++) {
+        ctx.mockInput.pressKey("k");
+        await ctx.renderer.idle();
+        await ctx.renderOnce();
+      }
+
+      // Scroll should have decreased to show the selected story
+      expect(ctx.app.currentSelectedIndex).toBe(3);
+      expect(storyListState.scroll.scrollTop).toBeLessThan(scrollAtBottom);
+    });
+
+    it("should not scroll when selected story is already visible", async () => {
+      const posts = createMockPosts(20);
+      ctx.app.setPostsForTesting(posts);
+      await ctx.renderOnce();
+
+      const storyListState = (ctx.app as any).storyListState;
+
+      // Select first story
+      ctx.mockInput.pressKey("j");
+      await ctx.renderer.idle();
+      await ctx.renderOnce();
+      expect(storyListState.scroll.scrollTop).toBe(0);
+
+      // Navigate to second story (should still be visible without scrolling)
+      ctx.mockInput.pressKey("j");
+      await ctx.renderer.idle();
+      await ctx.renderOnce();
+      expect(ctx.app.currentSelectedIndex).toBe(1);
+      expect(storyListState.scroll.scrollTop).toBe(0);
+    });
+  });
+
   describe("Comment Navigation", () => {
     beforeEach(async () => {
       const mockPost = createMockPostWithComments({}, 5);
