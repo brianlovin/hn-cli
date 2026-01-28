@@ -127,9 +127,12 @@ describe("HackerNewsApp", () => {
       // Navigate down past the visible viewport (each story is ~3 lines with gap)
       for (let i = 0; i < 15; i++) {
         ctx.mockInput.pressKey("j");
-        await ctx.renderer.idle(); // Wait for async selectStory to complete
+        await ctx.renderer.idle();
         await ctx.renderOnce();
       }
+      // Extra render to ensure scroll position is fully applied
+      await ctx.renderer.idle();
+      await ctx.renderOnce();
 
       // Scroll should have changed to show the selected story
       expect(ctx.app.currentSelectedIndex).toBe(14);
@@ -150,6 +153,8 @@ describe("HackerNewsApp", () => {
         await ctx.renderer.idle();
         await ctx.renderOnce();
       }
+      await ctx.renderer.idle();
+      await ctx.renderOnce();
       expect(ctx.app.currentSelectedIndex).toBe(18);
       const scrollAtBottom = storyListState.scroll.scrollTop;
       expect(scrollAtBottom).toBeGreaterThan(0);
@@ -160,6 +165,8 @@ describe("HackerNewsApp", () => {
         await ctx.renderer.idle();
         await ctx.renderOnce();
       }
+      await ctx.renderer.idle();
+      await ctx.renderOnce();
 
       // Scroll should have decreased to show the selected story
       expect(ctx.app.currentSelectedIndex).toBe(3);
