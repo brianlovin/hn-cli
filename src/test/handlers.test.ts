@@ -5,13 +5,13 @@ import type { AuthSetupState } from "../components/AuthSetup";
 import type { SettingsState } from "../components/SettingsPanel";
 import type { ChatPanelState } from "../components/ChatPanel";
 import type { SuggestionsState } from "../components/Suggestions";
-import type { SlashCommandsState } from "../components/SlashCommands";
+import type { SlashCommand, SlashCommandsState } from "../components/SlashCommands";
 
 const renderSuggestionsMock = mock(() => {});
 const renderSlashCommandsMock = mock(() => {});
 const filterCommandsMock = mock(() => {});
 const navigateSlashCommandsMock = mock(() => {});
-const getSelectedCommandMock = mock(() => null);
+const getSelectedCommandMock = mock<() => SlashCommand | null>(() => null);
 const showSlashCommandsMock = mock(() => {});
 const hideSlashCommandsMock = mock(() => {});
 
