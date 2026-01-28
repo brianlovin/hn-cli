@@ -9,6 +9,7 @@ export interface SuggestionsState {
   selectedIndex: number;
   loading: boolean;
   loadingFrame: number;
+  hidden: boolean; // Hide panel while slash commands are open
 }
 
 export function createSuggestionsContainer(ctx: RenderContext): BoxRenderable {
@@ -19,11 +20,11 @@ export function createSuggestionsContainer(ctx: RenderContext): BoxRenderable {
     flexShrink: 0,
     paddingLeft: 2,
     paddingRight: 2,
-    paddingTop: 1,
-    paddingBottom: 1,
+    paddingTop: 0,
+    paddingBottom: 0,
     backgroundColor: COLORS.bg,
     borderStyle: "single",
-    border: ["top"],
+    border: [],
     borderColor: COLORS.border,
   });
 }
@@ -39,14 +40,23 @@ export function renderSuggestions(
     state.container.remove(child.id);
   }
 
+  const container = state.container as any;
+
+  // If hidden (e.g., slash commands open), hide container but keep data loading
+  if (state.hidden) {
+    container.paddingTop = 0;
+    container.paddingBottom = 0;
+    container.border = [];
+    return;
+  }
+
   // Determine if we have content to show
   const hasContent = state.loading || state.suggestions.length > 0;
 
   // Hide container styling when empty (no border, no padding)
-  const container = state.container as any;
   if (hasContent) {
-    container.paddingTop = 1;
-    container.paddingBottom = 1;
+    container.paddingTop = 0;
+    container.paddingBottom = 0;
     container.border = ["top"];
   } else {
     container.paddingTop = 0;
@@ -161,5 +171,6 @@ export function initSuggestionsState(container: BoxRenderable): SuggestionsState
     selectedIndex: -1,
     loading: false,
     loadingFrame: 0,
+    hidden: false,
   };
 }

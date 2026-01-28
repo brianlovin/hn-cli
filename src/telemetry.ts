@@ -44,6 +44,7 @@ export type TelemetryEvent =
   | "tldr_completed"
   | "chat_opened"
   | "chat_message"
+  | "chat_clear"
   | "url_opened"
   | "refresh"
   | "settings_opened";

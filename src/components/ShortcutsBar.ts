@@ -101,7 +101,8 @@ export const STORY_LIST_SHORTCUTS: ShortcutItem[] = [
 ];
 
 export const CHAT_SHORTCUTS: ShortcutItem[] = [
-  { key: "esc", desc: "close" },
+  { key: "/", desc: "commands" },
+  { key: "esc", desc: "close", rightAlign: true },
 ];
 
 export const SETTINGS_SHORTCUTS: ShortcutItem[] = [

@@ -9,6 +9,12 @@ import type { HackerNewsPost } from "../types";
 import { COLORS } from "../theme";
 import { createShortcutsBar, CHAT_SHORTCUTS } from "./ShortcutsBar";
 import { createSuggestionsContainer, type SuggestionsState, initSuggestionsState } from "./Suggestions";
+import {
+  createSlashCommandsContainer,
+  initSlashCommandsState,
+  type SlashCommandsState,
+  type SlashCommand,
+} from "./SlashCommands";
 import { createChatInput } from "./ChatInput";
 import { createStoryHeader } from "./StoryHeader";
 import type { Provider } from "../config";
@@ -22,6 +28,7 @@ export interface ChatMessage {
 export interface ChatPanelCallbacks {
   onOpenStoryUrl: () => void;
   onSubmit: () => void;
+  onClearChat: () => void;
 }
 
 export interface ChatPanelState {
@@ -30,6 +37,7 @@ export interface ChatPanelState {
   content: BoxRenderable;
   input: TextareaRenderable;
   suggestions: SuggestionsState;
+  slashCommands: SlashCommandsState;
   messages: ChatMessage[];
   isActive: boolean;
   // Typing indicator state
@@ -70,6 +78,17 @@ export function createChatPanel(
   const suggestionsContainer = createSuggestionsContainer(ctx);
   const suggestionsState = initSuggestionsState(suggestionsContainer);
 
+  // Create slash commands container (shown in place of suggestions when "/" is typed)
+  const slashCommandsContainer = createSlashCommandsContainer(ctx);
+  const defaultSlashCommands: SlashCommand[] = [
+    {
+      name: "clear",
+      description: "Clear chat history",
+      handler: () => callbacks.onClearChat(),
+    },
+  ];
+  const slashCommandsState = initSlashCommandsState(slashCommandsContainer, defaultSlashCommands);
+
   // Create input area
   const chatInputState = createChatInput(ctx, {
     onSubmit: callbacks.onSubmit,
@@ -94,6 +113,7 @@ export function createChatPanel(
   panel.add(chatHeader);
   panel.add(scroll);
   panel.add(suggestionsContainer);
+  panel.add(slashCommandsContainer);
   panel.add(chatInputState.container);
   panel.add(chatShortcutsBar);
 
@@ -103,6 +123,7 @@ export function createChatPanel(
     content,
     input: chatInputState.input,
     suggestions: suggestionsState,
+    slashCommands: slashCommandsState,
     messages: [],
     isActive: true,
     isTyping: false,

@@ -12,6 +12,8 @@ export interface ChatServiceState {
   provider: Provider;
   storyContext: string;
   isStreaming: boolean;
+  activeStream: { abort: () => void } | null;
+  abortRequested: boolean;
 }
 
 export function initChatServiceState(provider: Provider): ChatServiceState {
@@ -21,7 +23,22 @@ export function initChatServiceState(provider: Provider): ChatServiceState {
     provider,
     storyContext: "",
     isStreaming: false,
+    activeStream: null,
+    abortRequested: false,
   };
+}
+
+export function cancelChatStream(state: ChatServiceState): void {
+  state.abortRequested = true;
+  if (state.activeStream) {
+    try {
+      state.activeStream.abort();
+    } catch (error) {
+      log("[chat-stream] Abort failed:", error instanceof Error ? error.message : String(error));
+    }
+    state.activeStream = null;
+  }
+  state.isStreaming = false;
 }
 
 export function buildStoryContext(post: HackerNewsPost): string {
@@ -103,6 +120,8 @@ export async function streamAIResponse(
   post: HackerNewsPost,
   callbacks: StreamCallbacks,
 ): Promise<void> {
+  state.abortRequested = false;
+  state.activeStream = null;
   state.isStreaming = true;
 
   // Build system context if not already built
@@ -125,17 +144,39 @@ IMPORTANT CONTEXT DISTINCTION:
 
 The user is reading this in a terminal app. Be concise but insightful. When you search the web for article content, clearly distinguish between what's in the article versus what's being discussed in the HN comments.`;
 
+  const guardedCallbacks: StreamCallbacks = {
+    onText: (text) => {
+      if (!state.abortRequested) {
+        callbacks.onText(text);
+      }
+    },
+    onComplete: () => {
+      if (!state.abortRequested) {
+        callbacks.onComplete();
+      }
+    },
+    onError: (error) => {
+      if (!state.abortRequested) {
+        callbacks.onError(error);
+      }
+    },
+  };
+
   try {
     if (state.provider === "anthropic") {
-      await streamAnthropicResponse(state, messages, userMessage, systemPrompt, storyUrl, callbacks);
+      await streamAnthropicResponse(state, messages, userMessage, systemPrompt, storyUrl, guardedCallbacks);
     } else {
-      await streamOpenAIResponse(state, messages, userMessage, systemPrompt, storyUrl, callbacks);
+      await streamOpenAIResponse(state, messages, userMessage, systemPrompt, storyUrl, guardedCallbacks);
     }
   } catch (error) {
-    callbacks.onError(error instanceof Error ? error : new Error(String(error)));
+    if (!state.abortRequested) {
+      callbacks.onError(error instanceof Error ? error : new Error(String(error)));
+    }
+  } finally {
+    state.isStreaming = false;
+    state.activeStream = null;
+    state.abortRequested = false;
   }
-
-  state.isStreaming = false;
 }
 
 async function streamAnthropicResponse(
@@ -177,6 +218,11 @@ async function streamAnthropicResponse(
       }))
       .concat([{ role: "user", content: userMessage }]),
   });
+  state.activeStream = { abort: () => stream.abort() };
+  if (state.abortRequested) {
+    state.activeStream.abort();
+    return;
+  }
 
   let fullResponse = "";
 
@@ -226,6 +272,11 @@ async function streamOpenAIResponse(
           { role: "user", content: userMessage },
         ],
       });
+      state.activeStream = { abort: () => stream.abort() };
+      if (state.abortRequested) {
+        state.activeStream.abort();
+        return;
+      }
 
       // Listen for text delta events (snapshot contains accumulated text)
       stream.on("response.output_text.delta", (event) => {
@@ -238,6 +289,9 @@ async function streamOpenAIResponse(
       callbacks.onComplete();
       return;
     } catch (error) {
+      if (state.abortRequested) {
+        throw error;
+      }
       const errorMessage = error instanceof Error ? error.message : String(error);
       log("[openai-stream] Responses API failed, falling back to chat completions without web search. Error:", errorMessage);
       // Fall through to chat completions (web search will not be available)
@@ -258,6 +312,11 @@ async function streamOpenAIResponse(
       { role: "user", content: userMessage },
     ],
   });
+  state.activeStream = { abort: () => stream.controller.abort() };
+  if (state.abortRequested) {
+    state.activeStream.abort();
+    return;
+  }
 
   log("[openai-stream] Stream created, reading chunks...");
   let fullResponse = "";
