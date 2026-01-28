@@ -164,11 +164,14 @@ export function scrollToStory(
   state: StoryListState,
   index: number,
 ): void {
-  const itemHeight = 2; // Each story item is ~2 lines
-  const gap = 1; // Gap between items
-  const itemTop = index * (itemHeight + gap);
-  const itemBottom = itemTop + itemHeight;
-  const viewportHeight = state.scroll.height;
+  const item = state.items.get(index);
+  if (!item) return;
+
+  // Get the item's position relative to the scroll content
+  const contentY = state.scroll.content.y;
+  const itemTop = item.y - contentY;
+  const itemBottom = itemTop + item.height;
+  const viewportHeight = state.scroll.viewport.height;
   const currentScroll = state.scroll.scrollTop;
 
   // Only scroll if the item is outside the visible viewport
