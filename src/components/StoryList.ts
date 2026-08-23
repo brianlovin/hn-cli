@@ -174,6 +174,10 @@ export function scrollToStory(
   const viewportHeight = state.scroll.viewport.height;
   const currentScroll = state.scroll.scrollTop;
 
+  // Layout has not run yet — do not treat a zero-size item as visible,
+  // and never reset an existing scroll position from stale 0,0 metrics.
+  if (viewportHeight <= 0 || item.height <= 0) return;
+
   // Only scroll if the item is outside the visible viewport
   if (itemTop < currentScroll) {
     // Item is above viewport - scroll up to show it at top

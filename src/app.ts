@@ -624,6 +624,10 @@ export class HackerNewsApp {
     this.rootCommentIndex = 0;
 
     updateStorySelection(this.storyListState, this.posts, previousIndex, index);
+    // Scroll immediately from the last laid-out frame. Detail fetching is
+    // independent — waiting on getPostById left the list unmoved when the
+    // network was slow or hung (selectedIndex updated, scrollTop stayed 0).
+    scrollToStory(this.storyListState, index);
 
     const post = this.posts[index];
     if (!post) return;
@@ -673,7 +677,6 @@ export class HackerNewsApp {
     }
 
     if (this.renderer.isDestroyed) return;
-    scrollToStory(this.storyListState, index);
     this.saveToCache();
   }
 
