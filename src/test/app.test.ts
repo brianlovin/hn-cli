@@ -121,8 +121,9 @@ describe("HackerNewsApp", () => {
     beforeEach(() => {
       originalFetch = globalThis.fetch;
       // List scroll must not depend on HN item fetches (CI cannot reach / hangs on hnpwa).
-      globalThis.fetch = (async () =>
-        new Response(null, { status: 404 })) as typeof fetch;
+      const mockFetch = async () => new Response(null, { status: 404 });
+      mockFetch.preconnect = originalFetch.preconnect;
+      globalThis.fetch = mockFetch as typeof fetch;
     });
 
     afterEach(() => {
@@ -131,7 +132,9 @@ describe("HackerNewsApp", () => {
 
     it("should scroll down to show off-screen selected story", async () => {
       // Hang the item fetch: scroll-into-view must not wait on getPostById.
-      globalThis.fetch = (() => new Promise(() => {})) as typeof fetch;
+      const hangingFetch = () => new Promise<Response>(() => {});
+      hangingFetch.preconnect = originalFetch.preconnect;
+      globalThis.fetch = hangingFetch as typeof fetch;
 
       // Create more stories than can fit in viewport
       const posts = createMockPosts(20);
