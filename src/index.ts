@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { createCliRenderer } from "@opentui/core";
-import { exec } from "child_process";
+import { execFile } from "node:child_process";
 import { HackerNewsApp } from "./app";
 import { checkForUpdates, currentVersion } from "./version";
 import { setTelemetryEnabled } from "./config";
@@ -9,6 +9,16 @@ import * as telemetry from "./telemetry";
 const COLORS = {
   bg: "#1a1a1a",
 };
+
+function openUrl(url: string): void {
+  if (process.platform === "darwin") {
+    execFile("open", [url]);
+  } else if (process.platform === "win32") {
+    execFile("cmd", ["/c", "start", "", url]);
+  } else {
+    execFile("xdg-open", [url]);
+  }
+}
 
 function parseArgs(): { storyId?: number } {
   const args = process.argv.slice(2);
@@ -64,9 +74,7 @@ async function main() {
   });
 
   const app = new HackerNewsApp(renderer, {
-    onOpenUrl: (url) => {
-      exec(`open "${url}"`);
-    },
+    onOpenUrl: openUrl,
     onExit: async () => {
       await telemetry.flushSync();
       renderer.destroy();
