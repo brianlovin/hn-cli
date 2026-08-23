@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
 import { createAppTestContext, cleanupTestContext, type TestContext } from "./test-utils";
 import { createMockPosts, createMockPostWithComments } from "./fixtures";
+import { scrollToStory } from "../components/StoryList";
 
 describe("HackerNewsApp", () => {
   let ctx: TestContext;
@@ -115,7 +116,26 @@ describe("HackerNewsApp", () => {
   });
 
   describe("Story List Scroll", () => {
+    let originalFetch: typeof fetch;
+
+    beforeEach(() => {
+      originalFetch = globalThis.fetch;
+      // List scroll must not depend on HN item fetches (CI cannot reach / hangs on hnpwa).
+      const mockFetch = async () => new Response(null, { status: 404 });
+      mockFetch.preconnect = originalFetch.preconnect;
+      globalThis.fetch = mockFetch as typeof fetch;
+    });
+
+    afterEach(() => {
+      globalThis.fetch = originalFetch;
+    });
+
     it("should scroll down to show off-screen selected story", async () => {
+      // Hang the item fetch: scroll-into-view must not wait on getPostById.
+      const hangingFetch = () => new Promise<Response>(() => {});
+      hangingFetch.preconnect = originalFetch.preconnect;
+      globalThis.fetch = hangingFetch as typeof fetch;
+
       // Create more stories than can fit in viewport
       const posts = createMockPosts(20);
       ctx.app.setPostsForTesting(posts);
@@ -136,6 +156,19 @@ describe("HackerNewsApp", () => {
 
       // Scroll should have changed to show the selected story
       expect(ctx.app.currentSelectedIndex).toBe(14);
+      expect(storyListState.scroll.scrollTop).toBeGreaterThan(0);
+    });
+
+    it("scrollToStory moves an off-screen item into view from current layout", async () => {
+      const posts = createMockPosts(20);
+      ctx.app.setPostsForTesting(posts);
+      await ctx.renderOnce();
+
+      const storyListState = (ctx.app as any).storyListState;
+      expect(storyListState.scroll.scrollTop).toBe(0);
+
+      scrollToStory(storyListState, 14);
+
       expect(storyListState.scroll.scrollTop).toBeGreaterThan(0);
     });
 
